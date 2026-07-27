@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
 
 export function Cta() {
+  const navigate = useNavigate()
+
   return (
     <section className="max-w-[1180px] mx-auto px-8 pt-[60px] pb-[90px]">
       <div className="relative overflow-hidden bg-purple border-4 border-ink rounded-[32px] px-10 py-16 text-center shadow-[0_16px_0_#3A0E86]">
@@ -15,8 +18,12 @@ export function Cta() {
           Crie um quiz agora ou entre em um jogo com o PIN. Leva menos de um minuto.
         </p>
         <div className="flex flex-wrap gap-3.5 justify-center">
-          <Button variant="ctaLight">Criar um quiz grátis</Button>
-          <Button variant="secondary">Entrar com PIN</Button>
+          <Button variant="ctaLight" onClick={() => navigate('/login')}>
+            Criar um quiz grátis
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/join')}>
+            Entrar com PIN
+          </Button>
         </div>
       </div>
     </section>

@@ -1,7 +1,10 @@
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { GameMockup } from './GameMockup'
 
 export function Hero() {
+  const navigate = useNavigate()
+
   return (
     <header className="relative px-8 pt-11 pb-[90px]">
       <span className="absolute top-6 right-[4%] text-[30px] text-yellow max-[860px]:hidden">★</span>
@@ -20,12 +23,16 @@ export function Hero() {
             <span className="text-purple">jogo</span> de turma.
           </h1>
           <p className="font-body font-semibold text-[19px] leading-[1.6] text-body-strong mt-[22px] max-w-[480px]">
-            Crie quizzes coloridos, dispute ao vivo e veja todos participando — na sala de aula, no evento ou no
+            Crie quizzes coloridos, dispute ao vivo e veja todos participando, na sala de aula, no evento ou no
             sofá. <strong>Pergunte. Jogue. Aprenda.</strong>
           </p>
           <div className="flex flex-wrap gap-3.5 mt-8">
-            <Button variant="primary">Criar um quiz grátis</Button>
-            <Button variant="secondary">Entrar com PIN</Button>
+            <Button variant="primary" onClick={() => navigate('/login')}>
+              Criar um quiz grátis
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/join')}>
+              Entrar com PIN
+            </Button>
           </div>
           <div className="flex items-center gap-[22px] mt-[30px] font-bold text-sm text-muted">
             <span>★★★★★ 4.9 / 5</span>

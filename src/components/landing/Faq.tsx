@@ -5,7 +5,7 @@ const faqs = [
   },
   {
     q: 'Preciso instalar algo?',
-    a: 'Não. Tudo roda no navegador. Jogadores entram digitando o PIN — sem app, sem cadastro.',
+    a: 'Não. Tudo roda no navegador. Jogadores entram digitando o PIN, sem app, sem cadastro.',
   },
   {
     q: 'Quantas pessoas podem jogar juntas?',

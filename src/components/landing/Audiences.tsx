@@ -22,7 +22,7 @@ const audiences = [
     itemColor: '#075985',
     checkColor: '#03B0FC',
     items: [
-      'Só o PIN — sem cadastro para jogar',
+      'Só o PIN, sem cadastro para jogar',
       'Crie e compartilhe seus próprios quizzes',
       'Ranking, conquistas e revanche',
     ],

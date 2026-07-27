@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/quizoo-logo.png'
 import { Button } from '../ui/Button'
 
@@ -9,6 +10,8 @@ const navLinks = [
 ]
 
 export function Nav() {
+  const navigate = useNavigate()
+
   return (
     <nav className="max-w-[1180px] mx-auto px-8 py-[22px] flex items-center justify-between">
       <img src={logo} alt="Quizoo" className="h-[54px] w-auto block" />
@@ -22,7 +25,9 @@ export function Nav() {
             {link.label}
           </a>
         ))}
-        <Button variant="outline">Entrar</Button>
+        <Button variant="outline" onClick={() => navigate('/login')}>
+          Entrar
+        </Button>
       </div>
     </nav>
   )

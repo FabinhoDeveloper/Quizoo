@@ -20,7 +20,7 @@ export function Accessibility() {
               Feito para todos jogarem
             </h2>
             <p className="text-[16.5px] text-[#C3BCE0] leading-[1.6] mb-7 max-w-[440px]">
-              Ninguém fica de fora. A cor nunca é a única pista — cada resposta tem forma e ícone próprios, e tudo foi
+              Ninguém fica de fora. A cor nunca é a única pista: cada resposta tem forma e ícone próprios, e tudo foi
               testado para daltonismo.
             </p>
             <Button variant="ghostLight">Ver compromisso de acessibilidade</Button>

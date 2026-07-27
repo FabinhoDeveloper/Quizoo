@@ -27,6 +27,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-cream text-heading font-body;
   }
