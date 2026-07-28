@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
-import { closeChannel, getGame, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
+import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
 export function PlayPage() {
   const { gameId = '' } = useParams()
@@ -21,6 +21,7 @@ export function PlayPage() {
       return null
     }
   })
+  const [typedInput, setTypedInput] = useState('')
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -52,7 +53,7 @@ export function PlayPage() {
   const payload = game?.current_payload ?? null
   const answeredThis = selected?.position === payload?.position
 
-  function answer(answerId: string) {
+  function submitChoice(answerId: string, typed?: string) {
     if (!payload || answeredThis) return
     const responseMs = Math.max(0, Date.now() - new Date(payload.startedAt).getTime())
     const choice = { position: payload.position, answerId }
@@ -62,7 +63,17 @@ export function PlayPage() {
     } catch {
       /* ignora */
     }
-    void submitAnswer(gameId, playerId, payload.questionId, answerId, responseMs)
+    // Em "digite a resposta" o answer_id vai nulo; o texto vai em typed_text.
+    void submitAnswer(gameId, playerId, payload.questionId, typed !== undefined ? null : answerId, responseMs, typed)
+  }
+
+  function answer(answerId: string) {
+    submitChoice(answerId)
+  }
+
+  function answerTyped() {
+    const t = typedInput.trim()
+    if (t) submitChoice(t, t)
   }
 
   const status = game?.status ?? 'lobby'
@@ -102,6 +113,28 @@ export function PlayPage() {
                 <p className="font-display font-semibold text-[18px] text-heading">Resposta enviada!</p>
                 <p className="text-body mt-1">Aguarde os outros jogadores…</p>
               </Card>
+            ) : payload.type === 'typed' ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  answerTyped()
+                }}
+                className="flex flex-col gap-3"
+              >
+                <input
+                  value={typedInput}
+                  onChange={(e) => setTypedInput(e.target.value)}
+                  placeholder="Digite sua resposta…"
+                  autoFocus
+                  className="rounded-[14px] border-2 border-border px-4 py-4 text-[18px] text-heading outline-none focus:border-purple"
+                />
+                <button
+                  type="submit"
+                  className="font-display font-semibold rounded-2xl px-8 py-4 text-[18px] text-ink bg-yellow shadow-[0_5px_0_#B98400] hover:translate-y-0.5 cursor-pointer"
+                >
+                  Enviar resposta
+                </button>
+              </form>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {payload.options.map((o, i) => {
@@ -126,7 +159,14 @@ export function PlayPage() {
 
         {status === 'reveal' && game?.reveal && (
           <RevealCard
-            gotIt={selected != null && selected.answerId === game.reveal.correctAnswerId}
+            gotIt={
+              selected != null &&
+              (game.reveal.correctAnswerId != null
+                ? selected.answerId === game.reveal.correctAnswerId
+                : (game.reveal.acceptedAnswers ?? []).some(
+                    (a) => normalizeText(a) === normalizeText(selected.answerId),
+                  ))
+            }
             answered={selected != null}
             myScore={game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0}
             myRank={rankOf(game.reveal.leaderboard, playerId)}

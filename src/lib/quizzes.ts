@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 
+export type QuestionType = 'multiple' | 'truefalse' | 'typed'
+
 export interface AnswerDraft {
   id: string
   label: string
@@ -8,6 +10,7 @@ export interface AnswerDraft {
 
 export interface QuestionDraft {
   id: string
+  type: QuestionType
   prompt: string
   time_limit: number
   points: number
@@ -30,12 +33,23 @@ export function emptyAnswer(): AnswerDraft {
   return { id: uid(), label: '', is_correct: false }
 }
 
-export function emptyQuestion(): QuestionDraft {
+export function newQuestion(type: QuestionType = 'multiple'): QuestionDraft {
+  const base = { id: uid(), type, prompt: '', time_limit: 20, points: 1000 }
+  if (type === 'truefalse') {
+    return {
+      ...base,
+      answers: [
+        { id: uid(), label: 'Verdadeiro', is_correct: true },
+        { id: uid(), label: 'Falso', is_correct: false },
+      ],
+    }
+  }
+  if (type === 'typed') {
+    // Para "digite a resposta", cada answer é uma resposta ACEITA (todas is_correct).
+    return { ...base, answers: [{ id: uid(), label: '', is_correct: true }] }
+  }
   return {
-    id: uid(),
-    prompt: '',
-    time_limit: 20,
-    points: 1000,
+    ...base,
     answers: [
       { id: uid(), label: '', is_correct: true },
       { id: uid(), label: '', is_correct: false },
@@ -43,6 +57,10 @@ export function emptyQuestion(): QuestionDraft {
       { id: uid(), label: '', is_correct: false },
     ],
   }
+}
+
+export function emptyQuestion(): QuestionDraft {
+  return newQuestion('multiple')
 }
 
 /** Lista os quizzes do usuário logado, com a contagem de perguntas. */
@@ -92,13 +110,14 @@ export async function getQuizForEdit(quizId: string): Promise<{
 
   const { data: questions, error: qsErr } = await supabase
     .from('questions')
-    .select('id, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qsErr) return { quiz, questions: [], error: qsErr.message }
 
   const drafts: QuestionDraft[] = (questions ?? []).map((q) => ({
     id: q.id,
+    type: (q.type ?? 'multiple') as QuestionType,
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
@@ -129,7 +148,7 @@ export async function saveQuiz(
     const q = questions[i]
     const { data: qRow, error: qErr } = await supabase
       .from('questions')
-      .insert({ quiz_id: quizId, position: i, prompt: q.prompt, time_limit: q.time_limit, points: q.points })
+      .insert({ quiz_id: quizId, position: i, type: q.type, prompt: q.prompt, time_limit: q.time_limit, points: q.points })
       .select('id')
       .single()
     if (qErr) return { error: qErr.message }

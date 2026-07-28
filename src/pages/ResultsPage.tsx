@@ -6,6 +6,7 @@ import {
   getGame,
   getPlayers,
   loadHostQuestions,
+  normalizeText,
   type Player,
 } from '../lib/game'
 
@@ -45,15 +46,18 @@ export function ResultsPage() {
       setTotalPlayers(roster.length)
 
       const questionStats: QuestionStat[] = questions.map((q) => {
-        const correctId = q.options.find((o) => o.is_correct)?.id
+        const correctId = q.type === 'typed' ? null : q.options.find((o) => o.is_correct)?.id
+        const acceptedNorms = q.options.filter((o) => o.is_correct).map((o) => normalizeText(o.label))
         const forQ = answers.filter((a) => a.question_id === q.id)
-        const byPlayer = new Map<string, string | null>()
+        const byPlayer = new Map<string, { answer_id: string | null; typed_text: string | null }>()
         forQ.forEach((a) => {
-          if (!byPlayer.has(a.player_id)) byPlayer.set(a.player_id, a.answer_id)
+          if (!byPlayer.has(a.player_id)) byPlayer.set(a.player_id, { answer_id: a.answer_id, typed_text: a.typed_text })
         })
         let correct = 0
-        byPlayer.forEach((answerId) => {
-          if (answerId === correctId) correct++
+        byPlayer.forEach((ans) => {
+          const ok =
+            q.type === 'typed' ? acceptedNorms.includes(normalizeText(ans.typed_text ?? '')) : ans.answer_id === correctId
+          if (ok) correct++
         })
         return { prompt: q.prompt, answered: byPlayer.size, correct }
       })

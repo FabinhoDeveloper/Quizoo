@@ -3,11 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
 import {
+  emptyAnswer,
   emptyQuestion,
   getQuizForEdit,
+  newQuestion,
   saveQuiz,
   setPublished,
   type QuestionDraft,
+  type QuestionType,
 } from '../lib/quizzes'
 
 export function EditorPage() {
@@ -64,12 +67,24 @@ export function EditorPage() {
     )
   }
 
-  function addQuestion() {
-    setQuestions((qs) => [...qs, emptyQuestion()])
+  function addQuestion(type: QuestionType) {
+    setQuestions((qs) => [...qs, newQuestion(type)])
   }
 
   function removeQuestion(qid: string) {
     setQuestions((qs) => (qs.length > 1 ? qs.filter((q) => q.id !== qid) : qs))
+  }
+
+  function addTypedAnswer(qid: string) {
+    setQuestions((qs) =>
+      qs.map((q) => (q.id === qid ? { ...q, answers: [...q.answers, { ...emptyAnswer(), is_correct: true }] } : q)),
+    )
+  }
+
+  function removeTypedAnswer(qid: string, aid: string) {
+    setQuestions((qs) =>
+      qs.map((q) => (q.id === qid && q.answers.length > 1 ? { ...q, answers: q.answers.filter((a) => a.id !== aid) } : q)),
+    )
   }
 
   function validate(): string | null {
@@ -78,8 +93,12 @@ export function EditorPage() {
       const q = questions[i]
       if (!q.prompt.trim()) return `A pergunta ${i + 1} está sem enunciado.`
       const filled = q.answers.filter((a) => a.label.trim() !== '')
-      if (filled.length < 2) return `A pergunta ${i + 1} precisa de pelo menos 2 alternativas.`
-      if (!filled.some((a) => a.is_correct)) return `Marque a alternativa correta da pergunta ${i + 1}.`
+      if (q.type === 'typed') {
+        if (filled.length < 1) return `A pergunta ${i + 1} precisa de pelo menos 1 resposta aceita.`
+      } else {
+        if (filled.length < 2) return `A pergunta ${i + 1} precisa de pelo menos 2 alternativas.`
+        if (!filled.some((a) => a.is_correct)) return `Marque a alternativa correta da pergunta ${i + 1}.`
+      }
     }
     return null
   }
@@ -189,17 +208,38 @@ export function EditorPage() {
               onPatchAnswer={(aid, label) => patchAnswer(q.id, aid, label)}
               onSetCorrect={(aid) => setCorrect(q.id, aid)}
               onRemove={() => removeQuestion(q.id)}
+              onAddTyped={() => addTypedAnswer(q.id)}
+              onRemoveTyped={(aid) => removeTypedAnswer(q.id, aid)}
             />
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={addQuestion}
-          className="w-full mt-5 font-display font-semibold rounded-[18px] border-2 border-dashed border-purple/40 text-purple py-4 hover:bg-lilac/40 transition-colors cursor-pointer"
-        >
-          + Adicionar pergunta
-        </button>
+        <div className="mt-5">
+          <p className="text-[13px] text-muted font-bold uppercase tracking-wide mb-2 text-center">Adicionar pergunta</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => addQuestion('multiple')}
+              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+            >
+              + Múltipla escolha
+            </button>
+            <button
+              type="button"
+              onClick={() => addQuestion('truefalse')}
+              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+            >
+              + Verdadeiro/Falso
+            </button>
+            <button
+              type="button"
+              onClick={() => addQuestion('typed')}
+              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+            >
+              + Digite a resposta
+            </button>
+          </div>
+        </div>
 
         <div className="mt-8 flex items-center justify-between gap-4">
           <button
@@ -223,6 +263,12 @@ export function EditorPage() {
   )
 }
 
+const TYPE_LABEL: Record<QuestionType, string> = {
+  multiple: 'Múltipla escolha',
+  truefalse: 'Verdadeiro/Falso',
+  typed: 'Digite a resposta',
+}
+
 function QuestionCard({
   index,
   question,
@@ -231,6 +277,8 @@ function QuestionCard({
   onPatchAnswer,
   onSetCorrect,
   onRemove,
+  onAddTyped,
+  onRemoveTyped,
 }: {
   index: number
   question: QuestionDraft
@@ -239,11 +287,18 @@ function QuestionCard({
   onPatchAnswer: (aid: string, label: string) => void
   onSetCorrect: (aid: string) => void
   onRemove: () => void
+  onAddTyped: () => void
+  onRemoveTyped: (aid: string) => void
 }) {
   return (
     <div className="bg-white border-2 border-border rounded-[22px] p-5 sm:p-6">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-display font-semibold text-[15px] text-purple">Pergunta {index + 1}</span>
+        <span className="flex items-center gap-2">
+          <span className="font-display font-semibold text-[15px] text-purple">Pergunta {index + 1}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-purple-dark bg-lilac px-2 py-0.5 rounded-full">
+            {TYPE_LABEL[question.type]}
+          </span>
+        </span>
         {canRemove && (
           <button
             type="button"
@@ -294,39 +349,84 @@ function QuestionCard({
         </label>
       </div>
 
-      <p className="text-[12px] text-muted mt-4 mb-2 font-bold uppercase tracking-wide">
-        Toque no ✓ para marcar a correta
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {question.answers.map((a, ai) => {
-          const style = answerStyle(ai)
-          return (
-            <div
-              key={a.id}
-              className="flex items-center gap-2.5 rounded-[14px] px-3 py-2.5"
-              style={{ background: style.bg }}
-            >
-              <span className="text-white text-[18px] w-5 text-center shrink-0">{style.shape}</span>
-              <input
-                value={a.label}
-                onChange={(e) => onPatchAnswer(a.id, e.target.value)}
-                placeholder={`Alternativa ${ai + 1}`}
-                className="flex-1 bg-transparent text-white placeholder:text-white/70 font-semibold text-[15px] outline-none min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => onSetCorrect(a.id)}
-                aria-label="Marcar como correta"
-                className={`shrink-0 w-7 h-7 rounded-full grid place-items-center font-bold transition-colors ${
-                  a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'
-                }`}
-              >
-                ✓
-              </button>
-            </div>
-          )
-        })}
-      </div>
+      {question.type === 'typed' ? (
+        <>
+          <p className="text-[12px] text-muted mt-4 mb-2 font-bold uppercase tracking-wide">
+            Respostas aceitas (o aluno digita — ignora acentos e maiúsculas)
+          </p>
+          <div className="flex flex-col gap-2">
+            {question.answers.map((a, ai) => (
+              <div key={a.id} className="flex items-center gap-2">
+                <span className="text-teal font-bold text-[16px] shrink-0">✓</span>
+                <input
+                  value={a.label}
+                  onChange={(e) => onPatchAnswer(a.id, e.target.value)}
+                  placeholder={`Resposta aceita ${ai + 1}`}
+                  className="flex-1 rounded-[12px] border-2 border-border px-3 py-2 text-[15px] text-heading outline-none focus:border-purple min-w-0"
+                />
+                {question.answers.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTyped(a.id)}
+                    aria-label="Remover"
+                    className="shrink-0 text-muted hover:text-pink text-[15px] font-bold px-1"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onAddTyped}
+            className="mt-2 text-[13px] font-bold text-purple hover:text-purple-dark cursor-pointer"
+          >
+            + adicionar outra resposta aceita
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-[12px] text-muted mt-4 mb-2 font-bold uppercase tracking-wide">
+            Toque no ✓ para marcar a correta
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {question.answers.map((a, ai) => {
+              const style = answerStyle(ai)
+              const fixedLabel = question.type === 'truefalse'
+              return (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-2.5 rounded-[14px] px-3 py-2.5"
+                  style={{ background: style.bg }}
+                >
+                  <span className="text-white text-[18px] w-5 text-center shrink-0">{style.shape}</span>
+                  {fixedLabel ? (
+                    <span className="flex-1 text-white font-semibold text-[15px]">{a.label}</span>
+                  ) : (
+                    <input
+                      value={a.label}
+                      onChange={(e) => onPatchAnswer(a.id, e.target.value)}
+                      placeholder={`Alternativa ${ai + 1}`}
+                      className="flex-1 bg-transparent text-white placeholder:text-white/70 font-semibold text-[15px] outline-none min-w-0"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onSetCorrect(a.id)}
+                    aria-label="Marcar como correta"
+                    className={`shrink-0 w-7 h-7 rounded-full grid place-items-center font-bold transition-colors ${
+                      a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'
+                    }`}
+                  >
+                    ✓
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }

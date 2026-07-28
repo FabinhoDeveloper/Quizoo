@@ -11,6 +11,7 @@ import {
   hostReveal,
   hostShowQuestion,
   loadHostQuestions,
+  normalizeText,
   openGameChannel,
   persistScores,
   type HostQuestion,
@@ -142,7 +143,10 @@ export function HostPage() {
     if (phaseRef.current !== 'question') return
     setPhaseSafe('reveal')
     const q = questionsRef.current[indexRef.current]
-    const correctId = q.options.find((o) => o.is_correct)?.id ?? null
+    const correctId = q.type === 'typed' ? null : q.options.find((o) => o.is_correct)?.id ?? null
+    // Em "digite a resposta", TODA alternativa marcada is_correct é uma resposta aceita.
+    const acceptedLabels = q.options.filter((o) => o.is_correct).map((o) => o.label)
+    const acceptedNorms = acceptedLabels.map((l) => normalizeText(l))
     const answers = await fetchQuestionAnswers(gameId, q.id)
     const seen = new Set<string>()
     answers.forEach((a) => {
@@ -150,13 +154,14 @@ export function HostPage() {
       seen.add(a.player_id)
       const row = scoresRef.current.get(a.player_id)
       if (!row) return
-      const correct = a.answer_id === correctId
+      const correct =
+        q.type === 'typed' ? acceptedNorms.includes(normalizeText(a.typed_text ?? '')) : a.answer_id === correctId
       row.score += awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
     })
     const board = [...scoresRef.current.values()].sort((a, b) => b.score - a.score)
     setLeaderboard(board)
     await persistScores(board)
-    await hostReveal(gameId, correctId, board)
+    await hostReveal(gameId, correctId, board, q.type === 'typed' ? acceptedLabels : undefined)
   }
 
   async function next() {
@@ -236,21 +241,30 @@ export function HostPage() {
             <div className="bg-white border-2 border-border rounded-[22px] p-6 sm:p-10 text-center mb-5">
               <h2 className="font-display font-semibold text-[26px] sm:text-[34px] text-heading">{q.prompt}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {q.options.map((o, i) => {
-                const s = answerStyle(i)
-                return (
-                  <div
-                    key={o.id}
-                    className="flex items-center gap-3 rounded-[16px] px-5 py-5 text-white"
-                    style={{ background: s.bg }}
-                  >
-                    <span className="text-[24px]">{s.shape}</span>
-                    <span className="font-display font-semibold text-[19px]">{o.label}</span>
-                  </div>
-                )
-              })}
-            </div>
+            {q.type === 'typed' ? (
+              <div className="bg-white border-2 border-dashed border-purple/40 rounded-[16px] px-5 py-8 text-center">
+                <div className="text-4xl mb-2">⌨️</div>
+                <p className="font-display font-semibold text-body text-[17px]">
+                  Os alunos estão digitando a resposta no celular…
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {q.options.map((o, i) => {
+                  const s = answerStyle(i)
+                  return (
+                    <div
+                      key={o.id}
+                      className="flex items-center gap-3 rounded-[16px] px-5 py-5 text-white"
+                      style={{ background: s.bg }}
+                    >
+                      <span className="text-[24px]">{s.shape}</span>
+                      <span className="font-display font-semibold text-[19px]">{o.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             <p className="text-center font-display font-semibold text-body mt-6">
               {answeredCount} de {players.length} responderam
             </p>
@@ -268,28 +282,47 @@ export function HostPage() {
 
         {phase === 'reveal' && q && (
           <div>
-            <h2 className="font-display font-semibold text-[24px] text-heading text-center mb-4">Resposta certa</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-              {q.options.map((o, i) => {
-                const s = answerStyle(i)
-                const correct = o.id === correctId
-                return (
-                  <div
-                    key={o.id}
-                    className={`flex items-center justify-between gap-3 rounded-[16px] px-5 py-4 text-white transition-opacity ${
-                      correct ? '' : 'opacity-40'
-                    }`}
-                    style={{ background: s.bg }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-[22px]">{s.shape}</span>
-                      <span className="font-display font-semibold text-[18px]">{o.label}</span>
+            <h2 className="font-display font-semibold text-[24px] text-heading text-center mb-4">
+              {q.type === 'typed' ? 'Respostas aceitas' : 'Resposta certa'}
+            </h2>
+            {q.type === 'typed' ? (
+              <div className="flex flex-wrap justify-center gap-2 mb-8">
+                {q.options
+                  .filter((o) => o.is_correct)
+                  .map((o) => (
+                    <span
+                      key={o.id}
+                      className="bg-teal-light text-teal font-display font-semibold text-[17px] px-5 py-3 rounded-[14px] border-2 border-teal"
+                    >
+                      ✓ {o.label}
+                    </span>
+                  ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                {q.options.map((o, i) => {
+                  const s = answerStyle(i)
+                  const correct = o.id === correctId
+                  return (
+                    <div
+                      key={o.id}
+                      className={`flex items-center justify-between gap-3 rounded-[16px] px-5 py-4 text-white transition-opacity ${
+                        correct ? '' : 'opacity-40'
+                      }`}
+                      style={{ background: s.bg }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-[22px]">{s.shape}</span>
+                        <span className="font-display font-semibold text-[18px]">{o.label}</span>
+                      </div>
+                      {correct && (
+                        <span className="bg-white text-teal w-7 h-7 rounded-full grid place-items-center font-bold">✓</span>
+                      )}
                     </div>
-                    {correct && <span className="bg-white text-teal w-7 h-7 rounded-full grid place-items-center font-bold">✓</span>}
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
 
             <Leaderboard rows={leaderboard} />
 

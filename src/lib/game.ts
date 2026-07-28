@@ -1,7 +1,19 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import type { QuestionType } from './quizzes'
 
 export type GameStatus = 'lobby' | 'question' | 'reveal' | 'ended'
+
+/** Normaliza texto para comparar respostas digitadas (minúsculas, sem acento/pontuação). */
+export function normalizeText(s: string): string {
+  return (s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export interface OptionPayload {
   id: string
@@ -11,6 +23,7 @@ export interface OptionPayload {
 
 export interface QuestionPayload {
   questionId: string
+  type: QuestionType
   position: number
   total: number
   prompt: string
@@ -28,6 +41,7 @@ export interface LeaderRow {
 
 export interface RevealPayload {
   correctAnswerId: string | null
+  acceptedAnswers?: string[]
   leaderboard: LeaderRow[]
   final?: boolean
 }
@@ -46,6 +60,7 @@ export interface GameRow {
 /** Pergunta completa do lado do host — inclui a resposta certa, NUNCA enviada aos jogadores. */
 export interface HostQuestion {
   id: string
+  type: QuestionType
   prompt: string
   time_limit: number
   points: number
@@ -67,7 +82,7 @@ export async function hostGame(
 ): Promise<{ gameId: string; pin: string; questions: HostQuestion[]; error: string | null }> {
   const { data: questions, error: qErr } = await supabase
     .from('questions')
-    .select('id, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qErr) return { gameId: '', pin: '', questions: [], error: qErr.message }
@@ -76,6 +91,7 @@ export async function hostGame(
 
   const hostQuestions: HostQuestion[] = questions.map((q) => ({
     id: q.id,
+    type: (q.type ?? 'multiple') as QuestionType,
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
@@ -105,11 +121,12 @@ export async function hostGame(
 export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]> {
   const { data } = await supabase
     .from('questions')
-    .select('id, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   return (data ?? []).map((q) => ({
     id: q.id,
+    type: (q.type ?? 'multiple') as QuestionType,
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
@@ -124,10 +141,10 @@ export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]>
 export async function fetchQuestionAnswers(
   gameId: string,
   questionId: string,
-): Promise<{ player_id: string; answer_id: string | null; response_ms: number }[]> {
+): Promise<{ player_id: string; answer_id: string | null; response_ms: number; typed_text: string | null }[]> {
   const { data } = await supabase
     .from('game_answers')
-    .select('player_id, answer_id, response_ms')
+    .select('player_id, answer_id, response_ms, typed_text')
     .eq('game_id', gameId)
     .eq('question_id', questionId)
   return data ?? []
@@ -136,10 +153,10 @@ export async function fetchQuestionAnswers(
 /** Todas as respostas enviadas na partida (para relatórios). */
 export async function fetchAllGameAnswers(
   gameId: string,
-): Promise<{ player_id: string; question_id: string; answer_id: string | null }[]> {
+): Promise<{ player_id: string; question_id: string; answer_id: string | null; typed_text: string | null }[]> {
   const { data } = await supabase
     .from('game_answers')
-    .select('player_id, question_id, answer_id')
+    .select('player_id, question_id, answer_id, typed_text')
     .eq('game_id', gameId)
   return data ?? []
 }
@@ -186,6 +203,7 @@ export async function submitAnswer(
   questionId: string,
   answerId: string | null,
   responseMs: number,
+  typedText?: string,
 ) {
   await supabase.from('game_answers').insert({
     game_id: gameId,
@@ -193,6 +211,7 @@ export async function submitAnswer(
     question_id: questionId,
     answer_id: answerId,
     response_ms: responseMs,
+    typed_text: typedText ?? null,
   })
 }
 
@@ -201,13 +220,15 @@ export async function submitAnswer(
 function sanitize(q: HostQuestion, position: number, total: number): QuestionPayload {
   return {
     questionId: q.id,
+    type: q.type,
     position,
     total,
     prompt: q.prompt,
     timeLimit: q.time_limit,
     points: q.points,
     startedAt: new Date().toISOString(),
-    options: q.options.map((o, i) => ({ id: o.id, label: o.label, index: i })),
+    // Em "digite a resposta" não mandamos alternativas (o aluno digita).
+    options: q.type === 'typed' ? [] : q.options.map((o, i) => ({ id: o.id, label: o.label, index: i })),
   }
 }
 
@@ -223,8 +244,16 @@ export async function hostShowQuestion(gameId: string, q: HostQuestion, position
     .eq('id', gameId)
 }
 
-export async function hostReveal(gameId: string, correctAnswerId: string | null, leaderboard: LeaderRow[]) {
-  await supabase.from('games').update({ status: 'reveal', reveal: { correctAnswerId, leaderboard } }).eq('id', gameId)
+export async function hostReveal(
+  gameId: string,
+  correctAnswerId: string | null,
+  leaderboard: LeaderRow[],
+  acceptedAnswers?: string[],
+) {
+  await supabase
+    .from('games')
+    .update({ status: 'reveal', reveal: { correctAnswerId, acceptedAnswers, leaderboard } })
+    .eq('id', gameId)
 }
 
 export async function hostEnd(gameId: string, leaderboard: LeaderRow[]) {

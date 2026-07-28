@@ -39,6 +39,7 @@ export async function generateQuizFromMaterial(
 
   const questions: QuestionDraft[] = (data.questions ?? []).map((q) => ({
     id: uid(),
+    type: 'multiple',
     prompt: q.prompt,
     time_limit: 20,
     points: 1000,
