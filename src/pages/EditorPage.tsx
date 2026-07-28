@@ -95,6 +95,8 @@ export function EditorPage() {
       const filled = q.answers.filter((a) => a.label.trim() !== '')
       if (q.type === 'typed') {
         if (filled.length < 1) return `A pergunta ${i + 1} precisa de pelo menos 1 resposta aceita.`
+      } else if (q.type === 'poll') {
+        if (filled.length < 2) return `A enquete ${i + 1} precisa de pelo menos 2 opções.`
       } else {
         if (filled.length < 2) return `A pergunta ${i + 1} precisa de pelo menos 2 alternativas.`
         if (!filled.some((a) => a.is_correct)) return `Marque a alternativa correta da pergunta ${i + 1}.`
@@ -216,27 +218,34 @@ export function EditorPage() {
 
         <div className="mt-5">
           <p className="text-[13px] text-muted font-bold uppercase tracking-wide mb-2 text-center">Adicionar pergunta</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <button
               type="button"
               onClick={() => addQuestion('multiple')}
-              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+              className="font-display font-semibold text-[14px] rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
             >
-              + Múltipla escolha
+              + Múltipla
             </button>
             <button
               type="button"
               onClick={() => addQuestion('truefalse')}
-              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+              className="font-display font-semibold text-[14px] rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
             >
-              + Verdadeiro/Falso
+              + V/F
             </button>
             <button
               type="button"
               onClick={() => addQuestion('typed')}
-              className="font-display font-semibold rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+              className="font-display font-semibold text-[14px] rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
             >
-              + Digite a resposta
+              + Digite
+            </button>
+            <button
+              type="button"
+              onClick={() => addQuestion('poll')}
+              className="font-display font-semibold text-[14px] rounded-[16px] border-2 border-dashed border-purple/40 text-purple py-3 hover:bg-lilac/40 transition-colors cursor-pointer"
+            >
+              + Enquete
             </button>
           </div>
         </div>
@@ -267,6 +276,7 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   multiple: 'Múltipla escolha',
   truefalse: 'Verdadeiro/Falso',
   typed: 'Digite a resposta',
+  poll: 'Enquete',
 }
 
 function QuestionCard({
@@ -388,7 +398,7 @@ function QuestionCard({
       ) : (
         <>
           <p className="text-[12px] text-muted mt-4 mb-2 font-bold uppercase tracking-wide">
-            Toque no ✓ para marcar a correta
+            {question.type === 'poll' ? 'Opções da enquete (sem resposta certa)' : 'Toque no ✓ para marcar a correta'}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {question.answers.map((a, ai) => {
@@ -411,16 +421,18 @@ function QuestionCard({
                       className="flex-1 bg-transparent text-white placeholder:text-white/70 font-semibold text-[15px] outline-none min-w-0"
                     />
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onSetCorrect(a.id)}
-                    aria-label="Marcar como correta"
-                    className={`shrink-0 w-7 h-7 rounded-full grid place-items-center font-bold transition-colors ${
-                      a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'
-                    }`}
-                  >
-                    ✓
-                  </button>
+                  {question.type !== 'poll' && (
+                    <button
+                      type="button"
+                      onClick={() => onSetCorrect(a.id)}
+                      aria-label="Marcar como correta"
+                      className={`shrink-0 w-7 h-7 rounded-full grid place-items-center font-bold transition-colors ${
+                        a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'
+                      }`}
+                    >
+                      ✓
+                    </button>
+                  )}
                 </div>
               )
             })}

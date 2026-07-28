@@ -157,7 +157,34 @@ export function PlayPage() {
           </div>
         )}
 
-        {status === 'reveal' && game?.reveal && (
+        {status === 'reveal' && game?.reveal?.pollCounts && (
+          <Card>
+            <div className="text-4xl mb-2">📊</div>
+            <p className="font-display font-semibold text-[18px] text-heading mb-4">Resultado da enquete</p>
+            <div className="flex flex-col gap-2.5 text-left">
+              {game.reveal.pollCounts.map((r, i) => {
+                const s = answerStyle(i)
+                const total = game.reveal!.pollCounts!.reduce((sum, x) => sum + x.count, 0) || 1
+                const pct = Math.round((r.count / total) * 100)
+                return (
+                  <div key={i}>
+                    <div className="flex justify-between text-[14px] font-display font-semibold text-heading mb-1">
+                      <span>
+                        {s.shape} {r.label}
+                      </span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div className="h-3 bg-border rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: s.bg }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
+        {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && (
           <RevealCard
             gotIt={
               selected != null &&

@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-export type QuestionType = 'multiple' | 'truefalse' | 'typed'
+export type QuestionType = 'multiple' | 'truefalse' | 'typed' | 'poll'
 
 export interface AnswerDraft {
   id: string
@@ -47,6 +47,18 @@ export function newQuestion(type: QuestionType = 'multiple'): QuestionDraft {
   if (type === 'typed') {
     // Para "digite a resposta", cada answer é uma resposta ACEITA (todas is_correct).
     return { ...base, answers: [{ id: uid(), label: '', is_correct: true }] }
+  }
+  if (type === 'poll') {
+    // Enquete: sem resposta certa (nenhuma is_correct).
+    return {
+      ...base,
+      answers: [
+        { id: uid(), label: '', is_correct: false },
+        { id: uid(), label: '', is_correct: false },
+        { id: uid(), label: '', is_correct: false },
+        { id: uid(), label: '', is_correct: false },
+      ],
+    }
   }
   return {
     ...base,

@@ -33,6 +33,7 @@ export function HostPage() {
   const [timeLeft, setTimeLeft] = useState(0)
   const [answeredCount, setAnsweredCount] = useState(0)
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([])
+  const [pollResult, setPollResult] = useState<{ label: string; count: number }[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const questionsRef = useRef<HostQuestion[]>([])
@@ -149,11 +150,15 @@ export function HostPage() {
     const acceptedNorms = acceptedLabels.map((l) => normalizeText(l))
     const answers = await fetchQuestionAnswers(gameId, q.id)
     const seen = new Set<string>()
+    const votes = new Map<string, number>() // answer_id -> votos (enquete)
     answers.forEach((a) => {
       if (seen.has(a.player_id)) return // conta só a 1ª resposta de cada jogador
       seen.add(a.player_id)
+      if (a.answer_id) votes.set(a.answer_id, (votes.get(a.answer_id) ?? 0) + 1)
       const row = scoresRef.current.get(a.player_id)
       if (!row) return
+      // Enquete não tem resposta certa: 0 pontos.
+      if (q.type === 'poll') return
       const correct =
         q.type === 'typed' ? acceptedNorms.includes(normalizeText(a.typed_text ?? '')) : a.answer_id === correctId
       row.score += awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
@@ -161,7 +166,13 @@ export function HostPage() {
     const board = [...scoresRef.current.values()].sort((a, b) => b.score - a.score)
     setLeaderboard(board)
     await persistScores(board)
-    await hostReveal(gameId, correctId, board, q.type === 'typed' ? acceptedLabels : undefined)
+    const pollCounts =
+      q.type === 'poll' ? q.options.map((o) => ({ label: o.label, count: votes.get(o.id) ?? 0 })) : undefined
+    setPollResult(pollCounts ?? [])
+    await hostReveal(gameId, correctId, board, {
+      acceptedAnswers: q.type === 'typed' ? acceptedLabels : undefined,
+      pollCounts,
+    })
   }
 
   async function next() {
@@ -283,9 +294,32 @@ export function HostPage() {
         {phase === 'reveal' && q && (
           <div>
             <h2 className="font-display font-semibold text-[24px] text-heading text-center mb-4">
-              {q.type === 'typed' ? 'Respostas aceitas' : 'Resposta certa'}
+              {q.type === 'poll' ? 'Resultado da enquete' : q.type === 'typed' ? 'Respostas aceitas' : 'Resposta certa'}
             </h2>
-            {q.type === 'typed' ? (
+            {q.type === 'poll' ? (
+              <div className="flex flex-col gap-3 mb-8 max-w-[520px] mx-auto">
+                {pollResult.map((r, i) => {
+                  const s = answerStyle(i)
+                  const total = pollResult.reduce((sum, x) => sum + x.count, 0) || 1
+                  const pct = Math.round((r.count / total) * 100)
+                  return (
+                    <div key={i}>
+                      <div className="flex justify-between text-[15px] font-display font-semibold text-heading mb-1">
+                        <span>
+                          {s.shape} {r.label}
+                        </span>
+                        <span>
+                          {r.count} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-3.5 bg-border rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: s.bg }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : q.type === 'typed' ? (
               <div className="flex flex-wrap justify-center gap-2 mb-8">
                 {q.options
                   .filter((o) => o.is_correct)

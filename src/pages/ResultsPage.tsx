@@ -14,6 +14,7 @@ interface QuestionStat {
   prompt: string
   answered: number
   correct: number
+  isPoll: boolean
 }
 
 export function ResultsPage() {
@@ -59,7 +60,7 @@ export function ResultsPage() {
             q.type === 'typed' ? acceptedNorms.includes(normalizeText(ans.typed_text ?? '')) : ans.answer_id === correctId
           if (ok) correct++
         })
-        return { prompt: q.prompt, answered: byPlayer.size, correct }
+        return { prompt: q.prompt, answered: byPlayer.size, correct, isPoll: q.type === 'poll' }
       })
       setStats(questionStats)
       setLoading(false)
@@ -113,6 +114,21 @@ export function ResultsPage() {
             <h2 className="font-display font-semibold text-[20px] text-heading mb-3">Acerto por pergunta</h2>
             <div className="flex flex-col gap-4">
               {stats.map((s, i) => {
+                if (s.isPoll) {
+                  return (
+                    <div key={i} className="bg-white border-2 border-border rounded-[16px] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-display font-semibold text-heading text-[15px]">
+                          {i + 1}. {s.prompt}
+                        </p>
+                        <span className="text-[12px] font-bold uppercase tracking-wide text-purple-dark bg-lilac px-2 py-0.5 rounded-full shrink-0">
+                          Enquete
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-muted mt-1.5">{s.answered} responderam (sem resposta certa)</p>
+                    </div>
+                  )
+                }
                 const pct = s.answered > 0 ? Math.round((s.correct / s.answered) * 100) : 0
                 const color = pct >= 70 ? '#01cfab' : pct >= 40 ? '#feb703' : '#fe4881'
                 return (

@@ -42,6 +42,7 @@ export interface LeaderRow {
 export interface RevealPayload {
   correctAnswerId: string | null
   acceptedAnswers?: string[]
+  pollCounts?: { label: string; count: number }[]
   leaderboard: LeaderRow[]
   final?: boolean
 }
@@ -248,11 +249,14 @@ export async function hostReveal(
   gameId: string,
   correctAnswerId: string | null,
   leaderboard: LeaderRow[],
-  acceptedAnswers?: string[],
+  extra?: { acceptedAnswers?: string[]; pollCounts?: { label: string; count: number }[] },
 ) {
   await supabase
     .from('games')
-    .update({ status: 'reveal', reveal: { correctAnswerId, acceptedAnswers, leaderboard } })
+    .update({
+      status: 'reveal',
+      reveal: { correctAnswerId, acceptedAnswers: extra?.acceptedAnswers, pollCounts: extra?.pollCounts, leaderboard },
+    })
     .eq('id', gameId)
 }
 
