@@ -5,6 +5,7 @@ import { answerStyle } from '../lib/answerStyles'
 import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
+import { GameQr } from '../components/GameQr'
 import { playFanfare, playTick, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import {
   awardPoints,
@@ -248,11 +249,14 @@ export function HostPage() {
             <p className="font-display font-semibold text-purple text-[15px] uppercase tracking-wide mb-2">
               Entre em quizoo.com.br e use o PIN
             </p>
-            <div className="inline-block bg-white border-4 border-ink rounded-[24px] px-8 sm:px-14 py-6 shadow-[0_10px_0_#3A0E86] mb-6">
-              <div className="text-[13px] font-bold text-muted tracking-[0.2em]">GAME PIN</div>
-              <div className="font-display font-semibold text-[52px] sm:text-[72px] tracking-[0.15em] text-heading leading-none">
-                {pin}
+            <div className="flex flex-wrap items-center justify-center gap-5 mb-6">
+              <div className="inline-block bg-white border-4 border-ink rounded-[24px] px-8 sm:px-14 py-6 shadow-[0_10px_0_#3A0E86]">
+                <div className="text-[13px] font-bold text-muted tracking-[0.2em]">GAME PIN</div>
+                <div className="font-display font-semibold text-[52px] sm:text-[72px] tracking-[0.15em] text-heading leading-none">
+                  {pin}
+                </div>
               </div>
+              {pin && <GameQr pin={pin} />}
             </div>
 
             <p className="font-display font-semibold text-[20px] text-heading mb-4">

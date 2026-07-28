@@ -63,6 +63,7 @@ export function PlayPage() {
   const payload = game?.current_payload ?? null
   const answeredThis = selected?.position === payload?.position
   const status = game?.status ?? 'lobby'
+  const feedbackMode = game?.feedback_mode ?? 'immediate'
 
   // libera o áudio no primeiro toque (exigência dos celulares)
   useEffect(() => {
@@ -104,6 +105,7 @@ export function PlayPage() {
     if (revealDoneRef.current === payload.position) return
     revealDoneRef.current = payload.position
     if (game.reveal.pollCounts) return // enquete não tem certo/errado
+    if (feedbackMode === 'end') return // só revela no final: sem som de certo/errado agora
     const gotIt =
       selected != null &&
       (game.reveal.correctAnswerId != null
@@ -269,7 +271,17 @@ export function PlayPage() {
           </Card>
         )}
 
-        {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && (
+        {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && feedbackMode === 'end' && (
+          <Card>
+            <div className="text-5xl mb-2">📝</div>
+            <p className="font-display font-semibold text-[20px] text-heading">
+              {selected != null ? 'Resposta registrada!' : 'Tempo esgotado'}
+            </p>
+            <p className="text-body mt-2">O resultado será revelado no final do quiz.</p>
+          </Card>
+        )}
+
+        {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && feedbackMode !== 'end' && (
           <RevealCard
             gotIt={
               selected != null &&

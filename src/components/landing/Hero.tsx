@@ -34,11 +34,6 @@ export function Hero() {
               Entrar com PIN
             </Button>
           </div>
-          <div className="flex items-center gap-[22px] mt-[30px] font-bold text-sm text-muted">
-            <span>★★★★★ 4.9 / 5</span>
-            <span className="w-[5px] h-[5px] bg-[#C9BEE8] rounded-full" />
-            <span>+2 milhões de partidas</span>
-          </div>
         </div>
 
         <GameMockup />

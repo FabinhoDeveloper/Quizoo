@@ -10,6 +10,7 @@ import {
   newQuestion,
   saveQuiz,
   setPublished,
+  type FeedbackMode,
   type QuestionDraft,
   type QuestionType,
 } from '../lib/quizzes'
@@ -27,6 +28,7 @@ export function EditorPage() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [isPublished, setIsPublished] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>('immediate')
 
   useEffect(() => {
     let active = true
@@ -41,6 +43,7 @@ export function EditorPage() {
       setDescription(res.quiz.description ?? '')
       setQuestions(res.questions.length ? res.questions : [emptyQuestion()])
       setIsPublished(res.quiz.is_published)
+      setFeedbackMode(res.quiz.feedback_mode ?? 'immediate')
       setLoading(false)
     })
     return () => {
@@ -74,6 +77,33 @@ export function EditorPage() {
 
   function removeQuestion(qid: string) {
     setQuestions((qs) => (qs.length > 1 ? qs.filter((q) => q.id !== qid) : qs))
+  }
+
+  const uid = () =>
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+
+  function duplicateQuestion(qid: string) {
+    setQuestions((qs) => {
+      const i = qs.findIndex((q) => q.id === qid)
+      if (i < 0) return qs
+      const copy: QuestionDraft = {
+        ...qs[i],
+        id: uid(),
+        answers: qs[i].answers.map((a) => ({ ...a, id: uid() })),
+      }
+      return [...qs.slice(0, i + 1), copy, ...qs.slice(i + 1)]
+    })
+  }
+
+  function moveQuestion(qid: string, dir: -1 | 1) {
+    setQuestions((qs) => {
+      const i = qs.findIndex((q) => q.id === qid)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= qs.length) return qs
+      const next = [...qs]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
   }
 
   function addTypedAnswer(qid: string) {
@@ -114,7 +144,7 @@ export function EditorPage() {
     }
     setError(null)
     setSaving(true)
-    const { error } = await saveQuiz(id, { title, description }, questions)
+    const { error } = await saveQuiz(id, { title, description, feedback_mode: feedbackMode }, questions)
     setSaving(false)
     if (error) {
       setError(error)
@@ -191,6 +221,35 @@ export function EditorPage() {
             placeholder="Descrição (opcional)"
             className="w-full mt-2 text-[15px] text-body outline-none placeholder:text-muted-2"
           />
+
+          <div className="mt-5 pt-5 border-t-2 border-border">
+            <p className="text-[13px] font-bold text-nav-link mb-1">Quando mostrar a resposta certa?</p>
+            <p className="text-[13px] text-muted mb-2.5">
+              {feedbackMode === 'immediate'
+                ? 'Imediato: o aluno vê se acertou logo após cada pergunta.'
+                : 'No final: o aluno só descobre o resultado no fim do quiz.'}
+            </p>
+            <div className="inline-flex bg-lilac/50 rounded-[14px] p-1">
+              <button
+                type="button"
+                onClick={() => setFeedbackMode('immediate')}
+                className={`font-display font-semibold text-[14px] rounded-[11px] px-4 py-2 transition cursor-pointer ${
+                  feedbackMode === 'immediate' ? 'bg-white text-purple shadow-sm' : 'text-purple-dark/70'
+                }`}
+              >
+                Feedback imediato
+              </button>
+              <button
+                type="button"
+                onClick={() => setFeedbackMode('end')}
+                className={`font-display font-semibold text-[14px] rounded-[11px] px-4 py-2 transition cursor-pointer ${
+                  feedbackMode === 'end' ? 'bg-white text-purple shadow-sm' : 'text-purple-dark/70'
+                }`}
+              >
+                Feedback no final
+              </button>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -207,10 +266,15 @@ export function EditorPage() {
               index={qi}
               question={q}
               canRemove={questions.length > 1}
+              isFirst={qi === 0}
+              isLast={qi === questions.length - 1}
               onPatch={(patch) => patchQuestion(q.id, patch)}
               onPatchAnswer={(aid, label) => patchAnswer(q.id, aid, label)}
               onSetCorrect={(aid) => setCorrect(q.id, aid)}
               onRemove={() => removeQuestion(q.id)}
+              onDuplicate={() => duplicateQuestion(q.id)}
+              onMoveUp={() => moveQuestion(q.id, -1)}
+              onMoveDown={() => moveQuestion(q.id, 1)}
               onAddTyped={() => addTypedAnswer(q.id)}
               onRemoveTyped={(aid) => removeTypedAnswer(q.id, aid)}
             />
@@ -341,41 +405,65 @@ function QuestionCard({
   index,
   question,
   canRemove,
+  isFirst,
+  isLast,
   onPatch,
   onPatchAnswer,
   onSetCorrect,
   onRemove,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
   onAddTyped,
   onRemoveTyped,
 }: {
   index: number
   question: QuestionDraft
   canRemove: boolean
+  isFirst: boolean
+  isLast: boolean
   onPatch: (patch: Partial<QuestionDraft>) => void
   onPatchAnswer: (aid: string, label: string) => void
   onSetCorrect: (aid: string) => void
   onRemove: () => void
+  onDuplicate: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
   onAddTyped: () => void
   onRemoveTyped: (aid: string) => void
 }) {
+  const iconBtn =
+    'w-8 h-8 grid place-items-center rounded-[10px] border-2 border-border text-nav-link hover:border-purple/50 hover:text-purple disabled:opacity-30 disabled:hover:border-border disabled:cursor-default cursor-pointer'
   return (
     <div className="bg-white border-2 border-border rounded-[22px] p-5 sm:p-6">
-      <div className="flex items-center justify-between mb-3">
-        <span className="flex items-center gap-2">
-          <span className="font-display font-semibold text-[15px] text-purple">Pergunta {index + 1}</span>
-          <span className="text-[11px] font-bold uppercase tracking-wide text-purple-dark bg-lilac px-2 py-0.5 rounded-full">
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="font-display font-semibold text-[15px] text-purple shrink-0">Pergunta {index + 1}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-purple-dark bg-lilac px-2 py-0.5 rounded-full truncate">
             {TYPE_LABEL[question.type]}
           </span>
         </span>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-[13px] font-bold text-muted hover:text-pink cursor-pointer"
-          >
-            Remover
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button type="button" onClick={onMoveUp} disabled={isFirst} title="Mover para cima" className={iconBtn}>
+            ↑
           </button>
-        )}
+          <button type="button" onClick={onMoveDown} disabled={isLast} title="Mover para baixo" className={iconBtn}>
+            ↓
+          </button>
+          <button type="button" onClick={onDuplicate} title="Duplicar pergunta" className={iconBtn}>
+            ⧉
+          </button>
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              title="Remover pergunta"
+              className="w-8 h-8 grid place-items-center rounded-[10px] border-2 border-border text-muted hover:border-pink hover:text-pink cursor-pointer"
+            >
+              🗑
+            </button>
+          )}
+        </div>
       </div>
 
       <textarea

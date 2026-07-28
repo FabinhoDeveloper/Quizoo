@@ -1,6 +1,5 @@
 import { Nav } from '../components/landing/Nav'
 import { Hero } from '../components/landing/Hero'
-import { TrustBar } from '../components/landing/TrustBar'
 import { HowItWorks } from '../components/landing/HowItWorks'
 import { Features } from '../components/landing/Features'
 import { Audiences } from '../components/landing/Audiences'
@@ -14,7 +13,6 @@ export function LandingPage() {
     <div className="overflow-hidden">
       <Nav />
       <Hero />
-      <TrustBar />
       <HowItWorks />
       <Features />
       <Audiences />

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { joinGame } from '../lib/game'
 import { PRESET_AVATARS, avatarBg, randomAvatar } from '../lib/avatars'
 
 export function JoinPage() {
   const navigate = useNavigate()
-  const [pin, setPin] = useState('')
+  const [params] = useSearchParams()
+  const [pin, setPin] = useState(() => (params.get('pin') ?? '').replace(/\D/g, '').slice(0, 6))
   const [nickname, setNickname] = useState('')
   const [avatar, setAvatar] = useState<string>(() => randomAvatar())
   const [error, setError] = useState<string | null>(null)

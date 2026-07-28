@@ -58,6 +58,7 @@ export interface GameRow {
   current_position: number
   current_payload: QuestionPayload | null
   reveal: RevealPayload | null
+  feedback_mode: 'immediate' | 'end'
 }
 
 /** Pergunta completa do lado do host — inclui a resposta certa, NUNCA enviada aos jogadores. */
@@ -94,6 +95,9 @@ export async function hostGame(
   if (!questions || questions.length === 0)
     return { gameId: '', pin: '', questions: [], error: 'Este quiz ainda não tem perguntas.' }
 
+  const { data: quizRow } = await supabase.from('quizzes').select('feedback_mode').eq('id', quizId).single()
+  const feedbackMode = (quizRow?.feedback_mode ?? 'immediate') as 'immediate' | 'end'
+
   const hostQuestions: HostQuestion[] = questions.map((q) => ({
     id: q.id,
     type: (q.type ?? 'multiple') as QuestionType,
@@ -112,7 +116,7 @@ export async function hostGame(
     const pin = genPin()
     const { data, error } = await supabase
       .from('games')
-      .insert({ quiz_id: quizId, host: hostId, pin, status: 'lobby', current_position: -1 })
+      .insert({ quiz_id: quizId, host: hostId, pin, status: 'lobby', current_position: -1, feedback_mode: feedbackMode })
       .select('id')
       .single()
     if (!error && data) return { gameId: data.id, pin, questions: hostQuestions, error: null }

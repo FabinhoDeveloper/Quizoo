@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 
 export type QuestionType = 'multiple' | 'truefalse' | 'typed' | 'poll'
+export type FeedbackMode = 'immediate' | 'end'
 
 export interface AnswerDraft {
   id: string
@@ -110,13 +111,13 @@ export async function createQuiz(ownerId: string): Promise<{ id: string | null; 
 
 /** Carrega um quiz com todas as perguntas e respostas, prontas para edição. */
 export async function getQuizForEdit(quizId: string): Promise<{
-  quiz: { id: string; title: string; description: string | null; is_published: boolean } | null
+  quiz: { id: string; title: string; description: string | null; is_published: boolean; feedback_mode: FeedbackMode } | null
   questions: QuestionDraft[]
   error: string | null
 }> {
   const { data: quiz, error: qErr } = await supabase
     .from('quizzes')
-    .select('id, title, description, is_published')
+    .select('id, title, description, is_published, feedback_mode')
     .eq('id', quizId)
     .single()
   if (qErr) return { quiz: null, questions: [], error: qErr.message }
@@ -146,12 +147,17 @@ export async function getQuizForEdit(quizId: string): Promise<{
 /** Salva o quiz: atualiza o cabeçalho e regrava todas as perguntas/respostas. */
 export async function saveQuiz(
   quizId: string,
-  header: { title: string; description: string },
+  header: { title: string; description: string; feedback_mode?: FeedbackMode },
   questions: QuestionDraft[],
 ): Promise<{ error: string | null }> {
   const up = await supabase
     .from('quizzes')
-    .update({ title: header.title, description: header.description, updated_at: new Date().toISOString() })
+    .update({
+      title: header.title,
+      description: header.description,
+      feedback_mode: header.feedback_mode ?? 'immediate',
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', quizId)
   if (up.error) return { error: up.error.message }
 
@@ -234,7 +240,11 @@ export async function cloneQuiz(sourceQuizId: string, ownerId: string): Promise<
   const { id, error: createErr } = await createQuiz(ownerId)
   if (createErr || !id) return { id: null, error: createErr ?? 'Não foi possível criar a cópia.' }
 
-  const { error: saveErr } = await saveQuiz(id, { title: `${quiz.title} (cópia)`, description: quiz.description ?? '' }, questions)
+  const { error: saveErr } = await saveQuiz(
+    id,
+    { title: `${quiz.title} (cópia)`, description: quiz.description ?? '', feedback_mode: quiz.feedback_mode },
+    questions,
+  )
   if (saveErr) return { id: null, error: saveErr }
   return { id, error: null }
 }
