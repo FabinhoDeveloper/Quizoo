@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { useAuth } from '../context/AuthContext'
 import { extractPdfText } from '../lib/pdfExtract'
-import { generateQuizFromMaterial, type Difficulty } from '../lib/aiQuiz'
+import { generateQuizFromMaterial, type Difficulty, type TimeOption } from '../lib/aiQuiz'
 import { createQuiz, saveQuiz } from '../lib/quizzes'
 
 const DIFFICULTIES: { value: Difficulty; label: string; hint: string }[] = [
@@ -20,6 +20,7 @@ export function CreateAiPage() {
   const [material, setMaterial] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medio')
   const [count, setCount] = useState(10)
+  const [timeOption, setTimeOption] = useState<TimeOption>('auto')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -58,7 +59,7 @@ export function CreateAiPage() {
     setBusy(true)
     setStatus('A IA está criando as perguntas… (pode levar alguns segundos)')
 
-    const { title, questions, error: genErr } = await generateQuizFromMaterial(material, difficulty, count)
+    const { title, questions, error: genErr } = await generateQuizFromMaterial(material, difficulty, count, timeOption)
     if (genErr || questions.length === 0) {
       setBusy(false)
       setStatus(null)
@@ -162,6 +163,30 @@ export function CreateAiPage() {
             </button>
           ))}
         </div>
+
+        {/* Tempo por pergunta */}
+        <h2 className="font-display font-semibold text-[17px] text-heading mt-6 mb-2">Tempo de cada pergunta</h2>
+        <div className="flex flex-wrap gap-2.5">
+          {([['auto', 'Automático'], [10, '10s'], [20, '20s'], [30, '30s'], [60, '60s'], [90, '90s']] as [TimeOption, string][]).map(
+            ([val, label]) => (
+              <button
+                key={String(val)}
+                type="button"
+                onClick={() => setTimeOption(val)}
+                className={`rounded-[12px] border-2 px-4 py-2 font-display font-semibold cursor-pointer transition-colors ${
+                  timeOption === val ? 'border-purple bg-lilac/50 text-purple-dark' : 'border-border bg-white text-heading'
+                }`}
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
+        <p className="text-[12px] text-muted mt-1.5">
+          {timeOption === 'auto'
+            ? 'Automático: perguntas maiores ganham mais tempo de resposta.'
+            : 'Todas as perguntas terão esse tempo (dá pra ajustar depois no editor).'}
+        </p>
 
         {status && !error && (
           <p className="mt-6 text-[14px] text-purple-dark font-semibold bg-lilac/40 rounded-xl px-4 py-3">{status}</p>

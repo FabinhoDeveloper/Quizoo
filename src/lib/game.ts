@@ -81,6 +81,32 @@ export interface Player {
 
 const genPin = () => String(Math.floor(100000 + Math.random() * 900000))
 
+/**
+ * Embaralha de forma DETERMINÍSTICA a partir do id da pergunta.
+ * Assim o host e todos os jogadores veem exatamente a mesma ordem
+ * (e a ordem não muda se a página recarregar), mas a alternativa
+ * correta não fica sempre na mesma posição/cor.
+ */
+function seededOrder<T>(arr: T[], seed: string): T[] {
+  let h = 2166136261
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  const rand = () => {
+    h += 0x6d2b79f5
+    let t = Math.imul(h ^ (h >>> 15), 1 | h)
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 /** Cria uma partida a partir de um quiz e devolve o PIN e as perguntas (com gabarito, para o host). */
 export async function hostGame(
   quizId: string,
@@ -105,10 +131,13 @@ export async function hostGame(
     time_limit: q.time_limit,
     points: q.points,
     image_url: q.image_url ?? null,
-    options: (q.answers ?? [])
-      .filter((a) => a.label?.trim())
-      .sort((a, b) => a.position - b.position)
-      .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
+    options: seededOrder(
+      (q.answers ?? [])
+        .filter((a) => a.label?.trim())
+        .sort((a, b) => a.position - b.position)
+        .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
+      q.id,
+    ),
   }))
 
   // tenta alguns PINs até achar um livre
@@ -141,10 +170,13 @@ export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]>
     time_limit: q.time_limit,
     points: q.points,
     image_url: q.image_url ?? null,
-    options: (q.answers ?? [])
-      .filter((a) => a.label?.trim())
-      .sort((a, b) => a.position - b.position)
-      .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
+    options: seededOrder(
+      (q.answers ?? [])
+        .filter((a) => a.label?.trim())
+        .sort((a, b) => a.position - b.position)
+        .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
+      q.id,
+    ),
   }))
 }
 
@@ -229,7 +261,7 @@ export async function submitAnswer(
 
 // ---------- Controles do host (escrevem no games row, fonte da verdade) ----------
 
-function sanitize(q: HostQuestion, position: number, total: number): QuestionPayload {
+function sanitize(q: HostQuestion, position: number, total: number, startedAt: string): QuestionPayload {
   return {
     questionId: q.id,
     type: q.type,
@@ -239,19 +271,25 @@ function sanitize(q: HostQuestion, position: number, total: number): QuestionPay
     imageUrl: q.image_url ?? null,
     timeLimit: q.time_limit,
     points: q.points,
-    startedAt: new Date().toISOString(),
+    startedAt,
     // Em "digite a resposta" não mandamos alternativas (o aluno digita).
     options: q.type === 'typed' ? [] : q.options.map((o, i) => ({ id: o.id, label: o.label, index: i })),
   }
 }
 
-export async function hostShowQuestion(gameId: string, q: HostQuestion, position: number, total: number) {
+export async function hostShowQuestion(
+  gameId: string,
+  q: HostQuestion,
+  position: number,
+  total: number,
+  startedAt: string,
+) {
   await supabase
     .from('games')
     .update({
       status: 'question',
       current_position: position,
-      current_payload: sanitize(q, position, total),
+      current_payload: sanitize(q, position, total, startedAt),
       reveal: null,
     })
     .eq('id', gameId)

@@ -5,6 +5,7 @@ import { answerStyle } from '../lib/answerStyles'
 import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
+import { Podium } from '../components/Podium'
 import { GameQr } from '../components/GameQr'
 import { playFanfare, playTick, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import {
@@ -162,12 +163,13 @@ export function HostPage() {
     const q = questionsRef.current[i]
     answeredRef.current = new Set()
     setAnsweredCount(0)
-    startRef.current = Date.now()
+    const startedAt = Date.now()
+    startRef.current = startedAt
     setTimeLeft(q.time_limit)
     indexRef.current = i
     setIndex(i)
     setPhaseSafe('question')
-    await hostShowQuestion(gameId, q, i, questionsRef.current.length)
+    await hostShowQuestion(gameId, q, i, questionsRef.current.length, new Date(startedAt).toISOString())
   }
 
   async function reveal() {
@@ -476,42 +478,6 @@ function Leaderboard({ rows, startRank = 1 }: { rows: LeaderRow[]; startRank?: n
           <span className="font-display font-semibold text-purple">{r.score}</span>
         </div>
       ))}
-    </div>
-  )
-}
-
-function Podium({ rows }: { rows: LeaderRow[] }) {
-  const top = rows.slice(0, 3)
-  const order = [1, 0, 2] // 2º, 1º, 3º
-  const heights = ['h-24', 'h-36', 'h-20']
-  const barColors = ['#03b0fc', '#feb703', '#fe4881']
-  const medals = ['🥈', '🥇', '🥉']
-  const delays = [0.15, 0, 0.3]
-  return (
-    <div className="flex items-end justify-center gap-2 sm:gap-3">
-      {order.map((idx, i) =>
-        top[idx] ? (
-          <div key={top[idx].playerId} className="flex flex-col items-center w-24 sm:w-28">
-            <div className="quizoo-pop" style={{ animationDelay: `${delays[i] + 0.2}s` }}>
-              <Avatar avatar={top[idx].avatar} name={top[idx].nickname} size={i === 1 ? 60 : 48} />
-            </div>
-            <span className="text-2xl sm:text-3xl -mt-2">{medals[i]}</span>
-            <span className="font-display font-semibold text-[15px] text-heading truncate max-w-[112px]">
-              {top[idx].nickname}
-            </span>
-            <span className="text-purple font-bold text-[14px] mb-1">{top[idx].score}</span>
-            <div
-              className={`w-full ${heights[i]} rounded-t-xl origin-bottom`}
-              style={{
-                background: barColors[i],
-                animation: `quizoo-grow 0.6s cubic-bezier(0.34,1.56,0.64,1) ${delays[i]}s both`,
-              }}
-            />
-          </div>
-        ) : (
-          <div key={i} className="w-24 sm:w-28" />
-        ),
-      )}
     </div>
   )
 }

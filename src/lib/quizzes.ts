@@ -36,7 +36,9 @@ export function emptyAnswer(): AnswerDraft {
 }
 
 export function newQuestion(type: QuestionType = 'multiple'): QuestionDraft {
-  const base = { id: uid(), type, prompt: '', time_limit: 20, points: 1000, image_url: null }
+  // Tempo padrão por tipo: V/F é rápido; digitar precisa de mais tempo.
+  const defaultTime = type === 'truefalse' ? 15 : type === 'typed' ? 30 : 20
+  const base = { id: uid(), type, prompt: '', time_limit: defaultTime, points: 1000, image_url: null }
   if (type === 'truefalse') {
     return {
       ...base,

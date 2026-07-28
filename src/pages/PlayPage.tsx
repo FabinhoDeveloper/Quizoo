@@ -7,6 +7,7 @@ import { answerStyle } from '../lib/answerStyles'
 import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
+import { Podium } from '../components/Podium'
 import { playCorrect, playFanfare, playTick, playWrong, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
@@ -33,6 +34,7 @@ export function PlayPage() {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const lastTickRef = useRef(99)
   const revealDoneRef = useRef(-1)
+  const qAnchorRef = useRef<{ pos: number; t: number }>({ pos: -1, t: 0 })
 
   useEffect(() => {
     if (!playerId) {
@@ -79,12 +81,21 @@ export function PlayPage() {
   // para a música ao sair
   useEffect(() => () => stopMusic(), [])
 
-  // cronômetro local durante a pergunta
+  // cronômetro local durante a pergunta.
+  // Ancora no relógio LOCAL do jogador (quando a pergunta chega), não no
+  // horário do host — assim celular e computador não divergem por diferença
+  // de relógio entre os aparelhos. A revelação continua controlada pelo host.
   useEffect(() => {
     if (status !== 'question' || !payload) return
     lastTickRef.current = 99
     const limit = payload.timeLimit
-    const started = new Date(payload.startedAt).getTime()
+    if (qAnchorRef.current.pos !== payload.position) {
+      // não deixa "ganhar tempo" além do que o host já contou
+      const hostElapsed = (Date.now() - new Date(payload.startedAt).getTime()) / 1000
+      const skew = hostElapsed > 0 && hostElapsed < limit ? Math.min(hostElapsed, 2) : 0
+      qAnchorRef.current = { pos: payload.position, t: Date.now() - skew * 1000 }
+    }
+    const started = qAnchorRef.current.t
     const tick = () => {
       const left = Math.max(0, Math.ceil(limit - (Date.now() - started) / 1000))
       setTimeLeft(left)
@@ -300,26 +311,52 @@ export function PlayPage() {
         )}
 
         {status === 'ended' && game?.reveal && (
-          <Card>
-            <div className="text-5xl mb-3">🏆</div>
-            <h1 className="font-display font-semibold text-[26px] text-heading mb-2">Fim de jogo!</h1>
-            <p className="text-body text-[17px]">
-              Você ficou em{' '}
-              <strong className="text-purple">
-                {rankOf(game.reveal.leaderboard, playerId)}º de {game.reveal.leaderboard.length}
-              </strong>
-            </p>
-            <p className="font-display font-semibold text-purple text-[30px] mt-2">
-              {game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0} pts
-            </p>
+          <div className="text-center">
+            <div className="text-5xl mb-2">🏆</div>
+            <h1 className="font-display font-semibold text-[26px] text-heading mb-5">Pódio final</h1>
+
+            <Podium rows={game.reveal.leaderboard} />
+
+            <div className="bg-white border-2 border-border rounded-[20px] p-5 mt-7 shadow-[0_10px_40px_rgba(90,31,158,0.06)]">
+              <p className="text-body text-[16px]">
+                Você ficou em{' '}
+                <strong className="text-purple">
+                  {rankOf(game.reveal.leaderboard, playerId)}º de {game.reveal.leaderboard.length}
+                </strong>
+              </p>
+              <p className="font-display font-semibold text-purple text-[30px] mt-1">
+                {game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0} pts
+              </p>
+            </div>
+
+            {game.reveal.leaderboard.length > 3 && (
+              <div className="max-w-[440px] mx-auto mt-5 flex flex-col gap-2">
+                {game.reveal.leaderboard.slice(3, 10).map((r, i) => (
+                  <div
+                    key={r.playerId}
+                    className={`flex items-center justify-between rounded-[14px] px-4 py-2.5 border-2 ${
+                      r.playerId === playerId ? 'border-purple bg-lilac/40' : 'border-border bg-white'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5 font-display font-semibold text-heading">
+                      <span className="text-muted w-5 text-right">{i + 4}</span>
+                      <Avatar avatar={r.avatar} name={r.nickname} size={30} />
+                      {r.nickname}
+                    </span>
+                    <span className="font-display font-semibold text-purple">{r.score}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="mt-6 font-display font-semibold rounded-2xl px-7 py-3 text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 cursor-pointer"
+              className="mt-7 font-display font-semibold rounded-2xl px-7 py-3 text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 cursor-pointer"
             >
               Voltar ao início
             </button>
-          </Card>
+          </div>
         )}
       </div>
     </div>

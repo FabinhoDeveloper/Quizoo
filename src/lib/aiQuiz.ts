@@ -11,11 +11,24 @@ interface ApiQuestion {
 const uid = () =>
   typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
 
+/** Segundos de resposta em 'auto': quanto maior a pergunta, mais tempo. */
+export type TimeOption = number | 'auto'
+
+function autoTime(prompt: string, options: string[]): number {
+  const chars = prompt.length + options.reduce((s, o) => s + o.length, 0)
+  if (chars < 70) return 15
+  if (chars < 130) return 20
+  if (chars < 200) return 30
+  if (chars < 300) return 45
+  return 60
+}
+
 /** Chama a IA (função serverless) para gerar perguntas a partir do material. */
 export async function generateQuizFromMaterial(
   material: string,
   difficulty: Difficulty,
   count: number,
+  time: TimeOption = 'auto',
 ): Promise<{ title: string; questions: QuestionDraft[]; error: string | null }> {
   let res: Response
   try {
@@ -41,7 +54,7 @@ export async function generateQuizFromMaterial(
     id: uid(),
     type: 'multiple',
     prompt: q.prompt,
-    time_limit: 20,
+    time_limit: time === 'auto' ? autoTime(q.prompt, q.options) : time,
     points: 1000,
     image_url: null,
     answers: q.options.map((label, i) => ({ id: uid(), label, is_correct: i === q.correctIndex })),
