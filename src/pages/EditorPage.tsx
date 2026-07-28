@@ -6,6 +6,7 @@ import {
   emptyQuestion,
   getQuizForEdit,
   saveQuiz,
+  setPublished,
   type QuestionDraft,
 } from '../lib/quizzes'
 
@@ -20,6 +21,8 @@ export function EditorPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [isPublished, setIsPublished] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -33,6 +36,7 @@ export function EditorPage() {
       setTitle(res.quiz.title === 'Quiz sem título' ? '' : res.quiz.title)
       setDescription(res.quiz.description ?? '')
       setQuestions(res.questions.length ? res.questions : [emptyQuestion()])
+      setIsPublished(res.quiz.is_published)
       setLoading(false)
     })
     return () => {
@@ -97,6 +101,18 @@ export function EditorPage() {
     setSavedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
   }
 
+  async function handleTogglePublish() {
+    setPublishing(true)
+    const next = !isPublished
+    const { error } = await setPublished(id, next)
+    setPublishing(false)
+    if (error) {
+      setError(error)
+      return
+    }
+    setIsPublished(next)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen grid place-items-center">
@@ -115,6 +131,17 @@ export function EditorPage() {
           </Link>
           <div className="flex items-center gap-3">
             {savedAt && !saving && <span className="text-[13px] text-teal font-bold hidden sm:inline">Salvo {savedAt}</span>}
+            <button
+              type="button"
+              onClick={handleTogglePublish}
+              disabled={publishing}
+              title={isPublished ? 'Está na biblioteca pública. Clique para tirar.' : 'Publicar na biblioteca pública'}
+              className={`font-display font-semibold rounded-[14px] px-4 py-2.5 text-[15px] border-2 transition-colors disabled:opacity-60 cursor-pointer ${
+                isPublished ? 'border-teal text-teal bg-teal-light' : 'border-border text-nav-link bg-white hover:border-purple/50'
+              }`}
+            >
+              {publishing ? '…' : isPublished ? '🌎 Publicado' : 'Publicar'}
+            </button>
             <button
               type="button"
               onClick={handleSave}

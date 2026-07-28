@@ -79,13 +79,13 @@ export async function createQuiz(ownerId: string): Promise<{ id: string | null; 
 
 /** Carrega um quiz com todas as perguntas e respostas, prontas para edição. */
 export async function getQuizForEdit(quizId: string): Promise<{
-  quiz: { id: string; title: string; description: string | null } | null
+  quiz: { id: string; title: string; description: string | null; is_published: boolean } | null
   questions: QuestionDraft[]
   error: string | null
 }> {
   const { data: quiz, error: qErr } = await supabase
     .from('quizzes')
-    .select('id, title, description')
+    .select('id, title, description, is_published')
     .eq('id', quizId)
     .single()
   if (qErr) return { quiz: null, questions: [], error: qErr.message }
@@ -148,4 +148,60 @@ export async function saveQuiz(
 export async function deleteQuiz(quizId: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('quizzes').delete().eq('id', quizId)
   return { error: error ? error.message : null }
+}
+
+// ---------- Biblioteca pública ----------
+
+export interface PublicQuiz {
+  id: string
+  title: string
+  description: string | null
+  question_count: number
+  author: string
+}
+
+/** Publica ou despublica um quiz (torna-o visível na biblioteca pública). */
+export async function setPublished(quizId: string, isPublished: boolean): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('quizzes').update({ is_published: isPublished }).eq('id', quizId)
+  return { error: error ? error.message : null }
+}
+
+/** Lista os quizzes publicados (visíveis a todos), com autor e nº de perguntas. */
+export async function listPublicQuizzes(): Promise<{ data: PublicQuiz[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('id, title, description, owner, questions(count)')
+    .eq('is_published', true)
+    .order('updated_at', { ascending: false })
+    .limit(60)
+  if (error) return { data: [], error: error.message }
+
+  const owners = [...new Set((data ?? []).map((q) => q.owner))]
+  const nameById = new Map<string, string>()
+  if (owners.length) {
+    const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', owners)
+    ;(profiles ?? []).forEach((p) => nameById.set(p.id, p.username ?? 'Anônimo'))
+  }
+
+  const mapped: PublicQuiz[] = (data ?? []).map((q) => ({
+    id: q.id,
+    title: q.title,
+    description: q.description,
+    question_count: Array.isArray(q.questions) ? (q.questions[0]?.count ?? 0) : 0,
+    author: nameById.get(q.owner) ?? 'Anônimo',
+  }))
+  return { data: mapped, error: null }
+}
+
+/** Duplica um quiz (público ou próprio) para a conta do usuário. Devolve o id da cópia. */
+export async function cloneQuiz(sourceQuizId: string, ownerId: string): Promise<{ id: string | null; error: string | null }> {
+  const { quiz, questions, error } = await getQuizForEdit(sourceQuizId)
+  if (error || !quiz) return { id: null, error: error ?? 'Quiz não encontrado.' }
+
+  const { id, error: createErr } = await createQuiz(ownerId)
+  if (createErr || !id) return { id: null, error: createErr ?? 'Não foi possível criar a cópia.' }
+
+  const { error: saveErr } = await saveQuiz(id, { title: `${quiz.title} (cópia)`, description: quiz.description ?? '' }, questions)
+  if (saveErr) return { id: null, error: saveErr }
+  return { id, error: null }
 }

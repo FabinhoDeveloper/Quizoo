@@ -65,6 +65,9 @@ export function DashboardPage() {
           <img src={logo} alt="Quizoo" className="h-11 sm:h-[54px] w-auto block" />
         </Link>
         <div className="flex items-center gap-3 sm:gap-5">
+          <Link to="/explore" className="font-bold text-[15px] text-nav-link hover:text-purple-dark">
+            Explorar
+          </Link>
           <span className="font-bold text-[15px] text-nav-link hidden sm:inline">Olá, {username}</span>
           <button
             type="button"

@@ -14,6 +14,7 @@ const EditorPage = lazy(() => import('./pages/EditorPage').then((m) => ({ defaul
 const HostPage = lazy(() => import('./pages/HostPage').then((m) => ({ default: m.HostPage })))
 const ResultsPage = lazy(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })))
 const CreateAiPage = lazy(() => import('./pages/CreateAiPage').then((m) => ({ default: m.CreateAiPage })))
+const ExplorePage = lazy(() => import('./pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 
 function Loading() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/join" element={<JoinPage />} />
             <Route path="/play/:gameId" element={<PlayPage />} />
+            <Route path="/explore" element={<ExplorePage />} />
             <Route
               path="/host/:gameId"
               element={
