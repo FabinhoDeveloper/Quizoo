@@ -15,6 +15,7 @@ const HostPage = lazy(() => import('./pages/HostPage').then((m) => ({ default: m
 const ResultsPage = lazy(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })))
 const CreateAiPage = lazy(() => import('./pages/CreateAiPage').then((m) => ({ default: m.CreateAiPage })))
 const ExplorePage = lazy(() => import('./pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })))
 
 function Loading() {
   return (
@@ -56,6 +57,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <EditorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
                 </ProtectedRoute>
               }
             />

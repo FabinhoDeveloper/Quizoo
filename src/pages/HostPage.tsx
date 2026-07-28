@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti'
 import { answerStyle } from '../lib/answerStyles'
 import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
+import { Avatar } from '../components/Avatar'
 import { playFanfare, playTick, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import {
   awardPoints,
@@ -72,12 +73,12 @@ export function HostPage() {
       if (!active) return
       playersRef.current = roster
       setPlayers(roster)
-      roster.forEach((p) => scoresRef.current.set(p.id, { playerId: p.id, nickname: p.nickname, score: 0 }))
+      roster.forEach((p) => scoresRef.current.set(p.id, { playerId: p.id, nickname: p.nickname, score: 0, avatar: p.avatar }))
 
       channelRef.current = openGameChannel(gameId, {
         onPlayerJoin: (p) => {
           if (!scoresRef.current.has(p.id)) {
-            scoresRef.current.set(p.id, { playerId: p.id, nickname: p.nickname, score: 0 })
+            scoresRef.current.set(p.id, { playerId: p.id, nickname: p.nickname, score: 0, avatar: p.avatar })
             playersRef.current = [...playersRef.current, p]
             setPlayers([...playersRef.current])
           }
@@ -261,8 +262,9 @@ export function HostPage() {
               {players.map((p) => (
                 <span
                   key={p.id}
-                  className="bg-lilac text-purple-dark font-bold text-[15px] px-4 py-2 rounded-full"
+                  className="flex items-center gap-2 bg-lilac text-purple-dark font-bold text-[15px] pl-1.5 pr-4 py-1.5 rounded-full quizoo-pop"
                 >
+                  <Avatar avatar={p.avatar} name={p.nickname} size={30} />
                   {p.nickname}
                 </span>
               ))}
@@ -294,6 +296,13 @@ export function HostPage() {
             </div>
             <div className="bg-white border-2 border-border rounded-[22px] p-6 sm:p-10 text-center mb-5">
               <h2 className="font-display font-semibold text-[26px] sm:text-[34px] text-heading">{q.prompt}</h2>
+              {q.image_url && (
+                <img
+                  src={q.image_url}
+                  alt=""
+                  className="mx-auto mt-5 rounded-[16px] max-h-[300px] w-auto object-contain"
+                />
+              )}
             </div>
             {q.type === 'typed' ? (
               <div className="bg-white border-2 border-dashed border-purple/40 rounded-[16px] px-5 py-8 text-center">
@@ -453,10 +462,12 @@ function Leaderboard({ rows, startRank = 1 }: { rows: LeaderRow[]; startRank?: n
       {rows.map((r, i) => (
         <div
           key={r.playerId}
-          className="flex items-center justify-between bg-white border-2 border-border rounded-[14px] px-4 py-3"
+          className="flex items-center justify-between bg-white border-2 border-border rounded-[14px] px-4 py-2.5"
         >
-          <span className="font-display font-semibold text-heading">
-            {startRank + i}. {r.nickname}
+          <span className="flex items-center gap-2.5 font-display font-semibold text-heading">
+            <span className="text-muted w-5 text-right">{startRank + i}</span>
+            <Avatar avatar={r.avatar} name={r.nickname} size={32} />
+            {r.nickname}
           </span>
           <span className="font-display font-semibold text-purple">{r.score}</span>
         </div>
@@ -477,12 +488,10 @@ function Podium({ rows }: { rows: LeaderRow[] }) {
       {order.map((idx, i) =>
         top[idx] ? (
           <div key={top[idx].playerId} className="flex flex-col items-center w-24 sm:w-28">
-            <span
-              className="text-3xl sm:text-4xl quizoo-pop"
-              style={{ animationDelay: `${delays[i] + 0.2}s` }}
-            >
-              {medals[i]}
-            </span>
+            <div className="quizoo-pop" style={{ animationDelay: `${delays[i] + 0.2}s` }}>
+              <Avatar avatar={top[idx].avatar} name={top[idx].nickname} size={i === 1 ? 60 : 48} />
+            </div>
+            <span className="text-2xl sm:text-3xl -mt-2">{medals[i]}</span>
             <span className="font-display font-semibold text-[15px] text-heading truncate max-w-[112px]">
               {top[idx].nickname}
             </span>

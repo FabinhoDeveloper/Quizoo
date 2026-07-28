@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { createQuiz, deleteQuiz, listQuizzes, type QuizSummary } from '../lib/quizzes'
 import { hostGame } from '../lib/game'
+import { Avatar } from '../components/Avatar'
 
 export function DashboardPage() {
   const { user, signOut } = useAuth()
@@ -14,6 +16,17 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [avatar, setAvatar] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => setAvatar(data?.avatar_url ?? null))
+  }, [user])
 
   async function refresh() {
     const { data, error } = await listQuizzes()
@@ -68,7 +81,14 @@ export function DashboardPage() {
           <Link to="/explore" className="font-bold text-[15px] text-nav-link hover:text-purple-dark">
             Explorar
           </Link>
-          <span className="font-bold text-[15px] text-nav-link hidden sm:inline">Olá, {username}</span>
+          <Link
+            to="/profile"
+            title="Editar perfil"
+            className="flex items-center gap-2 font-bold text-[15px] text-nav-link hover:text-purple-dark"
+          >
+            <Avatar avatar={avatar} name={username} size={34} />
+            <span className="hidden sm:inline">{username}</span>
+          </Link>
           <button
             type="button"
             onClick={signOut}
@@ -113,7 +133,7 @@ export function DashboardPage() {
           <p className="text-body font-semibold py-10 text-center">Carregando…</p>
         ) : quizzes.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-border rounded-[26px] p-12 text-center">
-            <div className="text-5xl mb-4">🦉</div>
+            <img src={logo} alt="Quizoo" className="h-12 w-auto mx-auto mb-5 opacity-90" />
             <h2 className="font-display font-semibold text-[22px] text-heading mb-2">Nenhum quiz ainda</h2>
             <p className="text-body text-[15px] mb-6">Que tal criar o seu primeiro? Leva menos de um minuto.</p>
             <button

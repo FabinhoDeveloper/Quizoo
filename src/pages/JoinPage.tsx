@@ -2,11 +2,13 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { joinGame } from '../lib/game'
+import { PRESET_AVATARS, avatarBg, randomAvatar } from '../lib/avatars'
 
 export function JoinPage() {
   const navigate = useNavigate()
   const [pin, setPin] = useState('')
   const [nickname, setNickname] = useState('')
+  const [avatar, setAvatar] = useState<string>(() => randomAvatar())
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -17,7 +19,7 @@ export function JoinPage() {
     if (!nickname.trim()) return setError('Escolha um apelido.')
 
     setBusy(true)
-    const { gameId, playerId, error } = await joinGame(pin, nickname)
+    const { gameId, playerId, error } = await joinGame(pin, nickname, avatar)
     setBusy(false)
     if (error || !gameId) {
       setError(error ?? 'Não foi possível entrar.')
@@ -25,6 +27,7 @@ export function JoinPage() {
     }
     localStorage.setItem(`quizoo_player_${gameId}`, playerId)
     localStorage.setItem(`quizoo_nick_${gameId}`, nickname.trim())
+    localStorage.setItem(`quizoo_avatar_${gameId}`, avatar)
     navigate(`/play/${gameId}`, { state: { playerId } })
   }
 
@@ -55,6 +58,27 @@ export function JoinPage() {
               placeholder="Seu apelido"
               className="rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple"
             />
+
+            <div>
+              <p className="text-[13px] font-display font-semibold text-body mb-2">Escolha seu avatar</p>
+              <div className="grid grid-cols-8 gap-1.5">
+                {PRESET_AVATARS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setAvatar(a)}
+                    className={`aspect-square rounded-full grid place-items-center text-[20px] border-2 transition ${
+                      avatar === a ? 'border-purple scale-110' : 'border-transparent hover:border-border'
+                    }`}
+                    style={{ background: avatarBg(a) }}
+                    aria-label={`Avatar ${a}`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {error && <p className="text-[14px] text-pink font-semibold">{error}</p>}
             <button
               type="submit"

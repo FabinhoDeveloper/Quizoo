@@ -6,6 +6,7 @@ import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
 import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
+import { Avatar } from '../components/Avatar'
 import { playCorrect, playFanfare, playTick, playWrong, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
@@ -15,6 +16,7 @@ export function PlayPage() {
 
   const playerId = (typeof history !== 'undefined' && (history.state?.usr?.playerId as string)) || localStorage.getItem(`quizoo_player_${gameId}`) || ''
   const nickname = localStorage.getItem(`quizoo_nick_${gameId}`) || 'Você'
+  const myAvatar = localStorage.getItem(`quizoo_avatar_${gameId}`) || ''
 
   const [game, setGame] = useState<GameRow | null>(null)
   const [selected, setSelected] = useState<{ position: number; answerId: string } | null>(() => {
@@ -164,7 +166,9 @@ export function PlayPage() {
 
         {status === 'lobby' && (
           <Card>
-            <div className="text-5xl mb-3">🎉</div>
+            <div className="flex justify-center mb-4">
+              <Avatar avatar={myAvatar} name={nickname} size={72} />
+            </div>
             <h1 className="font-display font-semibold text-[24px] text-heading mb-1">Você está no jogo!</h1>
             <p className="text-body">
               Apelido: <strong className="text-purple">{nickname}</strong>
@@ -183,6 +187,9 @@ export function PlayPage() {
             </div>
             <div className="bg-white border-2 border-border rounded-[20px] p-5 text-center mb-4">
               <h2 className="font-display font-semibold text-[20px] text-heading">{payload.prompt}</h2>
+              {payload.imageUrl && (
+                <img src={payload.imageUrl} alt="" className="mx-auto mt-4 rounded-[14px] max-h-[220px] w-auto object-contain" />
+              )}
             </div>
 
             {answeredThis ? (

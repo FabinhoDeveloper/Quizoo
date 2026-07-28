@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
+import { uploadImage } from '../lib/storage'
 import {
   emptyAnswer,
   emptyQuestion,
@@ -279,6 +280,63 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   poll: 'Enquete',
 }
 
+function QuestionImage({ imageUrl, onChange }: { imageUrl: string | null; onChange: (url: string | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    setErr(null)
+    setBusy(true)
+    const { url, error } = await uploadImage(file, 'questions')
+    setBusy(false)
+    if (error || !url) {
+      setErr(error ?? 'Não foi possível enviar a imagem.')
+      return
+    }
+    onChange(url)
+  }
+
+  return (
+    <div className="mt-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleFile(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+      {imageUrl ? (
+        <div className="relative inline-block">
+          <img src={imageUrl} alt="" className="rounded-[14px] max-h-[160px] w-auto border-2 border-border" />
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            aria-label="Remover imagem"
+            className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-pink text-white font-bold grid place-items-center shadow-md cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="flex items-center gap-2 text-[13px] font-bold text-purple hover:text-purple-dark disabled:opacity-60 cursor-pointer"
+        >
+          {busy ? 'Enviando imagem…' : '+ Adicionar imagem'}
+        </button>
+      )}
+      {err && <p className="text-[13px] text-pink font-semibold mt-1">{err}</p>}
+    </div>
+  )
+}
+
 function QuestionCard({
   index,
   question,
@@ -327,6 +385,8 @@ function QuestionCard({
         rows={2}
         className="w-full resize-none rounded-[14px] border-2 border-border px-4 py-3 text-[16px] text-heading outline-none focus:border-purple"
       />
+
+      <QuestionImage imageUrl={question.image_url} onChange={(url) => onPatch({ image_url: url })} />
 
       <div className="flex flex-wrap gap-3 mt-3">
         <label className="flex items-center gap-2 text-[13px] font-bold text-nav-link">

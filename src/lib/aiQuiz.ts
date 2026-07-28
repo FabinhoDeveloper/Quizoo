@@ -43,6 +43,7 @@ export async function generateQuizFromMaterial(
     prompt: q.prompt,
     time_limit: 20,
     points: 1000,
+    image_url: null,
     answers: q.options.map((label, i) => ({ id: uid(), label, is_correct: i === q.correctIndex })),
   }))
 

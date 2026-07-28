@@ -14,6 +14,7 @@ export interface QuestionDraft {
   prompt: string
   time_limit: number
   points: number
+  image_url: string | null
   answers: AnswerDraft[]
 }
 
@@ -34,7 +35,7 @@ export function emptyAnswer(): AnswerDraft {
 }
 
 export function newQuestion(type: QuestionType = 'multiple'): QuestionDraft {
-  const base = { id: uid(), type, prompt: '', time_limit: 20, points: 1000 }
+  const base = { id: uid(), type, prompt: '', time_limit: 20, points: 1000, image_url: null }
   if (type === 'truefalse') {
     return {
       ...base,
@@ -122,7 +123,7 @@ export async function getQuizForEdit(quizId: string): Promise<{
 
   const { data: questions, error: qsErr } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qsErr) return { quiz, questions: [], error: qsErr.message }
@@ -133,6 +134,7 @@ export async function getQuizForEdit(quizId: string): Promise<{
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
+    image_url: q.image_url ?? null,
     answers: (q.answers ?? [])
       .sort((a, b) => a.position - b.position)
       .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
@@ -160,7 +162,7 @@ export async function saveQuiz(
     const q = questions[i]
     const { data: qRow, error: qErr } = await supabase
       .from('questions')
-      .insert({ quiz_id: quizId, position: i, type: q.type, prompt: q.prompt, time_limit: q.time_limit, points: q.points })
+      .insert({ quiz_id: quizId, position: i, type: q.type, prompt: q.prompt, time_limit: q.time_limit, points: q.points, image_url: q.image_url })
       .select('id')
       .single()
     if (qErr) return { error: qErr.message }

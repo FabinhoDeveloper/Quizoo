@@ -27,6 +27,7 @@ export interface QuestionPayload {
   position: number
   total: number
   prompt: string
+  imageUrl?: string | null
   options: OptionPayload[]
   timeLimit: number
   points: number
@@ -37,6 +38,7 @@ export interface LeaderRow {
   playerId: string
   nickname: string
   score: number
+  avatar?: string | null
 }
 
 export interface RevealPayload {
@@ -65,6 +67,7 @@ export interface HostQuestion {
   prompt: string
   time_limit: number
   points: number
+  image_url?: string | null
   options: { id: string; label: string; is_correct: boolean }[]
 }
 
@@ -72,6 +75,7 @@ export interface Player {
   id: string
   nickname: string
   score: number
+  avatar?: string | null
 }
 
 const genPin = () => String(Math.floor(100000 + Math.random() * 900000))
@@ -83,7 +87,7 @@ export async function hostGame(
 ): Promise<{ gameId: string; pin: string; questions: HostQuestion[]; error: string | null }> {
   const { data: questions, error: qErr } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qErr) return { gameId: '', pin: '', questions: [], error: qErr.message }
@@ -96,6 +100,7 @@ export async function hostGame(
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
+    image_url: q.image_url ?? null,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -122,7 +127,7 @@ export async function hostGame(
 export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]> {
   const { data } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   return (data ?? []).map((q) => ({
@@ -131,6 +136,7 @@ export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]>
     prompt: q.prompt,
     time_limit: q.time_limit,
     points: q.points,
+    image_url: q.image_url ?? null,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -170,7 +176,7 @@ export async function getGame(gameId: string): Promise<{ game: GameRow | null; e
 export async function getPlayers(gameId: string): Promise<Player[]> {
   const { data } = await supabase
     .from('game_players')
-    .select('id, nickname, score')
+    .select('id, nickname, score, avatar')
     .eq('game_id', gameId)
     .order('joined_at', { ascending: true })
   return (data as Player[]) ?? []
@@ -180,6 +186,7 @@ export async function getPlayers(gameId: string): Promise<Player[]> {
 export async function joinGame(
   pin: string,
   nickname: string,
+  avatar?: string | null,
 ): Promise<{ gameId: string; playerId: string; error: string | null }> {
   const { data: game, error } = await supabase
     .from('games')
@@ -193,7 +200,7 @@ export async function joinGame(
   const playerId = crypto.randomUUID()
   const { error: insErr } = await supabase
     .from('game_players')
-    .insert({ id: playerId, game_id: game.id, nickname: nickname.trim().slice(0, 20) || 'Jogador' })
+    .insert({ id: playerId, game_id: game.id, nickname: nickname.trim().slice(0, 20) || 'Jogador', avatar: avatar ?? null })
   if (insErr) return { gameId: '', playerId: '', error: insErr.message }
   return { gameId: game.id, playerId, error: null }
 }
@@ -225,6 +232,7 @@ function sanitize(q: HostQuestion, position: number, total: number): QuestionPay
     position,
     total,
     prompt: q.prompt,
+    imageUrl: q.image_url ?? null,
     timeLimit: q.time_limit,
     points: q.points,
     startedAt: new Date().toISOString(),
@@ -301,8 +309,8 @@ export function openGameChannel(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'game_players', filter: `game_id=eq.${gameId}` },
       (payload) => {
-        const r = payload.new as { id: string; nickname: string; score: number }
-        handlers.onPlayerJoin!({ id: r.id, nickname: r.nickname, score: r.score ?? 0 })
+        const r = payload.new as { id: string; nickname: string; score: number; avatar: string | null }
+        handlers.onPlayerJoin!({ id: r.id, nickname: r.nickname, score: r.score ?? 0, avatar: r.avatar ?? null })
       },
     )
   }

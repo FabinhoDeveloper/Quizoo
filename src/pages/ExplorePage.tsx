@@ -65,7 +65,7 @@ export function ExplorePage() {
           <p className="text-body font-semibold py-10 text-center">Carregando…</p>
         ) : quizzes.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-border rounded-[26px] p-12 text-center">
-            <div className="text-5xl mb-4">🦉</div>
+            <img src={logo} alt="Quizoo" className="h-12 w-auto mx-auto mb-5 opacity-90" />
             <h2 className="font-display font-semibold text-[22px] text-heading mb-2">Ainda não há quizzes públicos</h2>
             <p className="text-body text-[15px]">Publique um quiz seu no editor pra ele aparecer aqui.</p>
           </div>
