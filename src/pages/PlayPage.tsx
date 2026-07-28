@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import confetti from 'canvas-confetti'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
+import { PulseTimer } from '../components/PulseTimer'
+import { MuteButton } from '../components/MuteButton'
+import { playCorrect, playFanfare, playTick, playWrong, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
 export function PlayPage() {
@@ -22,7 +26,11 @@ export function PlayPage() {
     }
   })
   const [typedInput, setTypedInput] = useState('')
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [streak, setStreak] = useState(0)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const lastTickRef = useRef(99)
+  const revealDoneRef = useRef(-1)
 
   useEffect(() => {
     if (!playerId) {
@@ -52,6 +60,76 @@ export function PlayPage() {
 
   const payload = game?.current_payload ?? null
   const answeredThis = selected?.position === payload?.position
+  const status = game?.status ?? 'lobby'
+
+  // libera o áudio no primeiro toque (exigência dos celulares)
+  useEffect(() => {
+    const unlock = () => {
+      primeAudio()
+      startMusic()
+      window.removeEventListener('pointerdown', unlock)
+    }
+    window.addEventListener('pointerdown', unlock, { once: true })
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
+
+  // para a música ao sair
+  useEffect(() => () => stopMusic(), [])
+
+  // cronômetro local durante a pergunta
+  useEffect(() => {
+    if (status !== 'question' || !payload) return
+    lastTickRef.current = 99
+    const limit = payload.timeLimit
+    const started = new Date(payload.startedAt).getTime()
+    const tick = () => {
+      const left = Math.max(0, Math.ceil(limit - (Date.now() - started) / 1000))
+      setTimeLeft(left)
+      if (left <= 5 && left > 0 && left !== lastTickRef.current && !answeredThis) {
+        lastTickRef.current = left
+        playTick(true)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 250)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, payload?.position, answeredThis])
+
+  // som + streak ao revelar
+  useEffect(() => {
+    if (status !== 'reveal' || !game?.reveal || !payload) return
+    if (revealDoneRef.current === payload.position) return
+    revealDoneRef.current = payload.position
+    if (game.reveal.pollCounts) return // enquete não tem certo/errado
+    const gotIt =
+      selected != null &&
+      (game.reveal.correctAnswerId != null
+        ? selected.answerId === game.reveal.correctAnswerId
+        : (game.reveal.acceptedAnswers ?? []).some((a) => normalizeText(a) === normalizeText(selected.answerId)))
+    if (gotIt) {
+      playCorrect()
+      setStreak((s) => s + 1)
+    } else {
+      playWrong()
+      setStreak(0)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, game?.reveal, payload?.position])
+
+  // fim de jogo: confete + fanfarra
+  useEffect(() => {
+    if (status !== 'ended') return
+    stopMusic()
+    playFanfare()
+    const end = Date.now() + 2200
+    const frame = () => {
+      confetti({ particleCount: 4, angle: 60, spread: 65, origin: { x: 0 }, colors: ['#8e46f0', '#feb703', '#01cfab', '#fe4881'] })
+      confetti({ particleCount: 4, angle: 120, spread: 65, origin: { x: 1 }, colors: ['#8e46f0', '#feb703', '#01cfab', '#fe4881'] })
+      if (Date.now() < end) requestAnimationFrame(frame)
+    }
+    frame()
+  }, [status])
 
   function submitChoice(answerId: string, typed?: string) {
     if (!payload || answeredThis) return
@@ -76,10 +154,9 @@ export function PlayPage() {
     if (t) submitChoice(t, t)
   }
 
-  const status = game?.status ?? 'lobby'
-
   return (
     <div className="min-h-screen">
+      <MuteButton className="fixed top-4 right-4 z-50 shadow-md" />
       <div className="max-w-[560px] mx-auto px-4 py-6">
         <Link to="/" className="flex justify-center mb-6">
           <img src={logo} alt="Quizoo" className="h-10 w-auto" />
@@ -97,11 +174,12 @@ export function PlayPage() {
         )}
 
         {status === 'question' && payload && (
-          <div>
-            <div className="text-center mb-4">
+          <div key={payload.position} className="quizoo-slidein">
+            <div className="flex items-center justify-between mb-4">
               <span className="font-display font-semibold text-body">
                 Pergunta {payload.position + 1} / {payload.total}
               </span>
+              <PulseTimer secondsLeft={timeLeft} total={payload.timeLimit} size={60} />
             </div>
             <div className="bg-white border-2 border-border rounded-[20px] p-5 text-center mb-4">
               <h2 className="font-display font-semibold text-[20px] text-heading">{payload.prompt}</h2>
@@ -198,6 +276,7 @@ export function PlayPage() {
             myScore={game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0}
             myRank={rankOf(game.reveal.leaderboard, playerId)}
             total={game.reveal.leaderboard.length}
+            streak={streak}
           />
         )}
 
@@ -239,12 +318,14 @@ function RevealCard({
   myScore,
   myRank,
   total,
+  streak,
 }: {
   gotIt: boolean
   answered: boolean
   myScore: number
   myRank: number
   total: number
+  streak: number
 }) {
   return (
     <Card>
@@ -255,8 +336,13 @@ function RevealCard({
         </>
       ) : gotIt ? (
         <>
-          <div className="text-5xl mb-2">🎉</div>
+          <div className="text-5xl mb-2 quizoo-pop">🎉</div>
           <p className="font-display font-semibold text-[22px] text-teal">Acertou!</p>
+          {streak >= 3 && (
+            <div className="mt-2 inline-flex items-center gap-1 bg-yellow/15 text-yellow-dark font-display font-semibold px-3 py-1.5 rounded-full quizoo-pop">
+              🔥 {streak} seguidas! <span className="text-pink">+bônus</span>
+            </div>
+          )}
         </>
       ) : (
         <>

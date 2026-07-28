@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import confetti from 'canvas-confetti'
 import { answerStyle } from '../lib/answerStyles'
+import { PulseTimer } from '../components/PulseTimer'
+import { MuteButton } from '../components/MuteButton'
+import { playFanfare, playTick, primeAudio, startMusic, stopMusic } from '../lib/sound'
 import {
   awardPoints,
   closeChannel,
@@ -38,11 +42,13 @@ export function HostPage() {
 
   const questionsRef = useRef<HostQuestion[]>([])
   const scoresRef = useRef<Map<string, LeaderRow>>(new Map())
+  const streaksRef = useRef<Map<string, number>>(new Map())
   const answeredRef = useRef<Set<string>>(new Set())
   const playersRef = useRef<Player[]>([])
   const indexRef = useRef(0)
   const phaseRef = useRef<Phase>('loading')
   const startRef = useRef(0)
+  const lastTickRef = useRef(99)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   function setPhaseSafe(p: Phase) {
@@ -114,6 +120,7 @@ export function HostPage() {
   useEffect(() => {
     if (phase !== 'question') return
     const q = questionsRef.current[indexRef.current]
+    lastTickRef.current = 99
     const id = setInterval(() => {
       const elapsed = (Date.now() - startRef.current) / 1000
       const left = Math.ceil(q.time_limit - elapsed)
@@ -122,11 +129,32 @@ export function HostPage() {
         void reveal()
       } else {
         setTimeLeft(left)
+        if (left <= 5 && left !== lastTickRef.current) {
+          lastTickRef.current = left
+          playTick(true)
+        }
       }
     }, 250)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, index])
+
+  // pódio: confete + fanfarra
+  useEffect(() => {
+    if (phase !== 'ended') return
+    stopMusic()
+    playFanfare()
+    const end = Date.now() + 2500
+    const frame = () => {
+      confetti({ particleCount: 5, angle: 60, spread: 70, origin: { x: 0 }, colors: ['#8e46f0', '#feb703', '#01cfab', '#fe4881'] })
+      confetti({ particleCount: 5, angle: 120, spread: 70, origin: { x: 1 }, colors: ['#8e46f0', '#feb703', '#01cfab', '#fe4881'] })
+      if (Date.now() < end) requestAnimationFrame(frame)
+    }
+    frame()
+  }, [phase])
+
+  // para a música ao sair
+  useEffect(() => () => stopMusic(), [])
 
   async function showQuestion(i: number) {
     const q = questionsRef.current[i]
@@ -161,8 +189,20 @@ export function HostPage() {
       if (q.type === 'poll') return
       const correct =
         q.type === 'typed' ? acceptedNorms.includes(normalizeText(a.typed_text ?? '')) : a.answer_id === correctId
-      row.score += awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
+      const base = awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
+      // Sequência de acertos: a partir do 3º acerto seguido, ganha bônus (até +500).
+      const prevStreak = streaksRef.current.get(a.player_id) ?? 0
+      const streak = correct ? prevStreak + 1 : 0
+      streaksRef.current.set(a.player_id, streak)
+      const streakBonus = correct && streak >= 3 ? Math.min(500, (streak - 2) * 100) : 0
+      row.score += base + streakBonus
     })
+    // Quem não respondeu perde a sequência (exceto em enquete).
+    if (q.type !== 'poll') {
+      scoresRef.current.forEach((_, pid) => {
+        if (!seen.has(pid)) streaksRef.current.set(pid, 0)
+      })
+    }
     const board = [...scoresRef.current.values()].sort((a, b) => b.score - a.score)
     setLeaderboard(board)
     await persistScores(board)
@@ -198,6 +238,7 @@ export function HostPage() {
 
   return (
     <div className="min-h-screen">
+      <MuteButton className="fixed top-4 right-4 z-50 shadow-md" />
       <div className="max-w-[1000px] mx-auto px-4 sm:px-8 py-6">
         {error && <p className="text-pink font-semibold mb-4">{error}</p>}
 
@@ -230,7 +271,11 @@ export function HostPage() {
 
             <button
               type="button"
-              onClick={() => showQuestion(0)}
+              onClick={() => {
+                primeAudio()
+                startMusic()
+                void showQuestion(0)
+              }}
               disabled={questionsRef.current.length === 0}
               className="font-display font-semibold rounded-2xl px-10 py-4 text-[20px] text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 disabled:opacity-60 cursor-pointer"
             >
@@ -240,14 +285,12 @@ export function HostPage() {
         )}
 
         {phase === 'question' && q && (
-          <div>
+          <div key={index} className="quizoo-slidein">
             <div className="flex items-center justify-between mb-4">
               <span className="font-display font-semibold text-body">
                 Pergunta {index + 1} / {questionsRef.current.length}
               </span>
-              <span className="font-display font-semibold text-white bg-purple w-12 h-12 grid place-items-center rounded-full text-[22px]">
-                {timeLeft}
-              </span>
+              <PulseTimer secondsLeft={timeLeft} total={q.time_limit} size={72} />
             </div>
             <div className="bg-white border-2 border-border rounded-[22px] p-6 sm:p-10 text-center mb-5">
               <h2 className="font-display font-semibold text-[26px] sm:text-[34px] text-heading">{q.prompt}</h2>
@@ -425,22 +468,35 @@ function Leaderboard({ rows, startRank = 1 }: { rows: LeaderRow[]; startRank?: n
 function Podium({ rows }: { rows: LeaderRow[] }) {
   const top = rows.slice(0, 3)
   const order = [1, 0, 2] // 2º, 1º, 3º
-  const heights = ['h-24', 'h-32', 'h-20']
+  const heights = ['h-24', 'h-36', 'h-20']
+  const barColors = ['#03b0fc', '#feb703', '#fe4881']
   const medals = ['🥈', '🥇', '🥉']
+  const delays = [0.15, 0, 0.3]
   return (
-    <div className="flex items-end justify-center gap-3">
+    <div className="flex items-end justify-center gap-2 sm:gap-3">
       {order.map((idx, i) =>
         top[idx] ? (
-          <div key={top[idx].playerId} className="flex flex-col items-center w-24">
-            <span className="text-3xl">{medals[i]}</span>
-            <span className="font-display font-semibold text-[15px] text-heading truncate max-w-[96px]">
+          <div key={top[idx].playerId} className="flex flex-col items-center w-24 sm:w-28">
+            <span
+              className="text-3xl sm:text-4xl quizoo-pop"
+              style={{ animationDelay: `${delays[i] + 0.2}s` }}
+            >
+              {medals[i]}
+            </span>
+            <span className="font-display font-semibold text-[15px] text-heading truncate max-w-[112px]">
               {top[idx].nickname}
             </span>
             <span className="text-purple font-bold text-[14px] mb-1">{top[idx].score}</span>
-            <div className={`w-full ${heights[i]} bg-purple rounded-t-xl`} />
+            <div
+              className={`w-full ${heights[i]} rounded-t-xl origin-bottom`}
+              style={{
+                background: barColors[i],
+                animation: `quizoo-grow 0.6s cubic-bezier(0.34,1.56,0.64,1) ${delays[i]}s both`,
+              }}
+            />
           </div>
         ) : (
-          <div key={i} className="w-24" />
+          <div key={i} className="w-24 sm:w-28" />
         ),
       )}
     </div>

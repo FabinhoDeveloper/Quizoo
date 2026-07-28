@@ -37,3 +37,55 @@
     font-family: inherit;
   }
 }
+
+/* Animações do jogo */
+@keyframes quizoo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.09);
+  }
+}
+
+@keyframes quizoo-slidein {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes quizoo-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes quizoo-grow {
+  0% {
+    transform: scaleY(0);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+.quizoo-slidein {
+  animation: quizoo-slidein 0.35s ease-out both;
+}
+.quizoo-pop {
+  animation: quizoo-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}

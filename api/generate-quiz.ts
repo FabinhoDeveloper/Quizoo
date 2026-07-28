@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import Anthropic from '@anthropic-ai/sdk'
 
 type Difficulty = 'facil' | 'medio' | 'dificil'
 
@@ -9,38 +8,17 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   dificil: 'nível DIFÍCIL (exigem análise, aplicação e raciocínio mais profundo sobre o material)',
 }
 
-const schema = {
-  type: 'object',
-  properties: {
-    title: { type: 'string', description: 'Um título curto para o quiz baseado no tema do material.' },
-    questions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          prompt: { type: 'string', description: 'O enunciado da pergunta.' },
-          options: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Exatamente 4 alternativas.',
-          },
-          correctIndex: { type: 'integer', description: 'Índice (0 a 3) da alternativa correta.' },
-        },
-        required: ['prompt', 'options', 'correctIndex'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['title', 'questions'],
-  additionalProperties: false,
-}
+// DeepSeek é compatível com a API da OpenAI (chat/completions).
+const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
+const MODEL = 'deepseek-chat'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido.' })
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'A chave da IA (ANTHROPIC_API_KEY) não está configurada no servidor.' })
+  const apiKey = process.env.DEEPSEEK_API_KEY
+  if (!apiKey) {
+    return res.status(500).json({ error: 'A chave da IA (DEEPSEEK_API_KEY) não está configurada no servidor.' })
   }
 
   const { material, difficulty, count } = (req.body ?? {}) as {
@@ -49,47 +27,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     count?: number
   }
 
-  const text = (material ?? '').slice(0, 200000).trim()
+  const text = (material ?? '').slice(0, 120000).trim()
   if (text.length < 40) {
     return res.status(400).json({ error: 'O material enviado está vazio ou muito curto.' })
   }
   const diff: Difficulty = difficulty && difficulty in DIFFICULTY_LABEL ? difficulty : 'medio'
   const n = Math.min(20, Math.max(1, Number(count) || 5))
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const system =
+    'Você é um professor especialista em criar quizzes de múltipla escolha em português do Brasil, ' +
+    'a partir de um material didático. Cada pergunta tem exatamente 4 alternativas, com apenas UMA correta. ' +
+    'As perguntas devem ser respondíveis usando o material fornecido. Evite pegadinhas ambíguas. ' +
+    'Responda SEMPRE em JSON válido, sem texto extra, no formato: ' +
+    '{"title": string, "questions": [{"prompt": string, "options": [string, string, string, string], "correctIndex": number}]}. ' +
+    'O campo correctIndex é o índice (0 a 3) da alternativa correta.'
+
+  const userMsg =
+    `Crie ${n} perguntas de ${DIFFICULTY_LABEL[diff]} a partir do material abaixo. ` +
+    `Cada pergunta deve ter exatamente 4 alternativas e um único índice correto (0 a 3). ` +
+    `Responda apenas com o objeto JSON pedido.\n\n=== MATERIAL ===\n${text}`
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-opus-5',
-      max_tokens: 8000,
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-      system:
-        'Você é um professor especialista em criar quizzes de múltipla escolha em português do Brasil, ' +
-        'a partir de um material didático. Cada pergunta tem exatamente 4 alternativas, com apenas UMA correta. ' +
-        'As perguntas devem ser respondíveis usando o material fornecido. Evite pegadinhas ambíguas.',
-      messages: [
-        {
-          role: 'user',
-          content:
-            `Crie ${n} perguntas de ${DIFFICULTY_LABEL[diff]} a partir do material abaixo. ` +
-            `Cada pergunta deve ter exatamente 4 alternativas e um único índice correto (0 a 3). ` +
-            `Responda apenas no formato JSON pedido.\n\n=== MATERIAL ===\n${text}`,
-        },
-      ],
+    const resp = await fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.6,
+        max_tokens: 8000,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userMsg },
+        ],
+      }),
     })
 
-    if (response.stop_reason === 'refusal') {
-      return res.status(400).json({ error: 'A IA recusou gerar a partir deste material.' })
+    if (!resp.ok) {
+      const detail = await resp.text().catch(() => '')
+      const msg =
+        resp.status === 401
+          ? 'Chave da IA inválida ou sem permissão (401).'
+          : resp.status === 402
+            ? 'A conta da IA está sem créditos (402).'
+            : `A IA retornou erro ${resp.status}.`
+      return res.status(502).json({ error: msg, detail: detail.slice(0, 300) })
     }
 
-    const textBlock = response.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
+    const data = (await resp.json()) as {
+      choices?: { message?: { content?: string } }[]
+    }
+    const content = data.choices?.[0]?.message?.content
+    if (!content) {
       return res.status(502).json({ error: 'A IA não retornou um resultado válido.' })
     }
 
-    const parsed = JSON.parse(textBlock.text) as {
+    let parsed: {
       title?: string
       questions?: { prompt: string; options: string[]; correctIndex: number }[]
+    }
+    try {
+      parsed = JSON.parse(content)
+    } catch {
+      return res.status(502).json({ error: 'A IA não retornou um JSON válido.' })
     }
 
     // Normaliza: garante 4 alternativas e índice válido
