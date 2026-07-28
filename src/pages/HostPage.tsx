@@ -144,7 +144,10 @@ export function HostPage() {
     const q = questionsRef.current[indexRef.current]
     const correctId = q.options.find((o) => o.is_correct)?.id ?? null
     const answers = await fetchQuestionAnswers(gameId, q.id)
+    const seen = new Set<string>()
     answers.forEach((a) => {
+      if (seen.has(a.player_id)) return // conta só a 1ª resposta de cada jogador
+      seen.add(a.player_id)
       const row = scoresRef.current.get(a.player_id)
       if (!row) return
       const correct = a.answer_id === correctId
@@ -310,13 +313,22 @@ export function HostPage() {
             <div className="max-w-[440px] mx-auto mt-8">
               <Leaderboard rows={leaderboard.slice(3)} startRank={4} />
             </div>
-            <button
-              type="button"
-              onClick={() => navigate('/app')}
-              className="mt-10 font-display font-semibold rounded-2xl px-8 py-3.5 text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 cursor-pointer"
-            >
-              Voltar ao painel
-            </button>
+            <div className="mt-10 flex items-center justify-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => navigate(`/results/${gameId}`)}
+                className="font-display font-semibold rounded-2xl px-7 py-3.5 text-purple bg-lilac hover:bg-[#e2d2ff] cursor-pointer"
+              >
+                📊 Ver relatório
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/app')}
+                className="font-display font-semibold rounded-2xl px-8 py-3.5 text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 cursor-pointer"
+              >
+                Voltar ao painel
+              </button>
+            </div>
           </div>
         )}
       </div>

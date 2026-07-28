@@ -82,14 +82,22 @@ export function DashboardPage() {
             <h1 className="font-display font-semibold text-[30px] sm:text-[40px] text-heading">Meus quizzes</h1>
             <p className="text-body text-[15px] mt-1">Crie um novo quiz ou continue editando.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={creating}
-            className="font-display font-semibold rounded-2xl px-6 py-3 text-[16px] text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 hover:shadow-[0_3px_0_#3A0E86] transition-[transform,box-shadow] disabled:opacity-60 cursor-pointer"
-          >
-            {creating ? 'Criando…' : '+ Criar quiz'}
-          </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Link
+              to="/create-ai"
+              className="font-display font-semibold rounded-2xl px-5 py-3 text-[16px] text-purple bg-lilac hover:bg-[#e2d2ff] cursor-pointer"
+            >
+              ✨ Gerar com IA
+            </Link>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating}
+              className="font-display font-semibold rounded-2xl px-6 py-3 text-[16px] text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 hover:shadow-[0_3px_0_#3A0E86] transition-[transform,box-shadow] disabled:opacity-60 cursor-pointer"
+            >
+              {creating ? 'Criando…' : '+ Criar quiz'}
+            </button>
+          </div>
         </div>
 
         {error && (

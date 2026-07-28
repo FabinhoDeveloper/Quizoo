@@ -13,7 +13,14 @@ export function PlayPage() {
   const nickname = localStorage.getItem(`quizoo_nick_${gameId}`) || 'Você'
 
   const [game, setGame] = useState<GameRow | null>(null)
-  const [selected, setSelected] = useState<{ position: number; answerId: string } | null>(null)
+  const [selected, setSelected] = useState<{ position: number; answerId: string } | null>(() => {
+    try {
+      const raw = localStorage.getItem(`quizoo_ans_${gameId}`)
+      return raw ? (JSON.parse(raw) as { position: number; answerId: string }) : null
+    } catch {
+      return null
+    }
+  })
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -22,14 +29,21 @@ export function PlayPage() {
       return
     }
     let active = true
-    getGame(gameId).then(({ game }) => {
-      if (active && game) setGame(game)
-    })
-    channelRef.current = openGameChannel(gameId, {
-      onGame: (g) => setGame(g),
-    })
+    const resync = () => getGame(gameId).then(({ game }) => active && game && setGame(game))
+    resync()
+    channelRef.current = openGameChannel(gameId, { onGame: (g) => setGame(g) })
+
+    // rede de segurança: se o tempo real cair, ressincroniza sozinho
+    const poll = setInterval(resync, 4000)
+    const onVisible = () => document.visibilityState === 'visible' && resync()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', resync)
+
     return () => {
       active = false
+      clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', resync)
       closeChannel(channelRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,7 +55,13 @@ export function PlayPage() {
   function answer(answerId: string) {
     if (!payload || answeredThis) return
     const responseMs = Math.max(0, Date.now() - new Date(payload.startedAt).getTime())
-    setSelected({ position: payload.position, answerId })
+    const choice = { position: payload.position, answerId }
+    setSelected(choice)
+    try {
+      localStorage.setItem(`quizoo_ans_${gameId}`, JSON.stringify(choice))
+    } catch {
+      /* ignora */
+    }
     void submitAnswer(gameId, playerId, payload.questionId, answerId, responseMs)
   }
 

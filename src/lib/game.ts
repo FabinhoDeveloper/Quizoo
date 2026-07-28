@@ -133,6 +133,17 @@ export async function fetchQuestionAnswers(
   return data ?? []
 }
 
+/** Todas as respostas enviadas na partida (para relatórios). */
+export async function fetchAllGameAnswers(
+  gameId: string,
+): Promise<{ player_id: string; question_id: string; answer_id: string | null }[]> {
+  const { data } = await supabase
+    .from('game_answers')
+    .select('player_id, question_id, answer_id')
+    .eq('game_id', gameId)
+  return data ?? []
+}
+
 export async function getGame(gameId: string): Promise<{ game: GameRow | null; error: string | null }> {
   const { data, error } = await supabase.from('games').select('*').eq('id', gameId).single()
   return { game: (data as GameRow) ?? null, error: error ? error.message : null }
