@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
 import { uploadImage } from '../lib/storage'
+import { assistQuestion } from '../lib/aiQuiz'
 import { THEMES, isImageTheme, themeBg } from '../lib/themes'
 import {
   emptyAnswer,
@@ -32,6 +33,39 @@ export function EditorPage() {
   const [publishing, setPublishing] = useState(false)
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>('immediate')
   const [theme, setTheme] = useState('default')
+  const [assistingId, setAssistingId] = useState<string | null>(null)
+
+  async function aiAssist(qid: string) {
+    const q = questions.find((x) => x.id === qid)
+    if (!q) return
+    if (!q.prompt.trim()) {
+      setError('Escreva o enunciado da pergunta antes de gerar com a IA.')
+      return
+    }
+    setError(null)
+    setAssistingId(qid)
+    const correctLabel = q.answers.find((a) => a.is_correct && a.label.trim())?.label
+    const { options, correctIndex, explanation, error } = await assistQuestion(q.prompt, correctLabel)
+    setAssistingId(null)
+    if (error || options.length === 0) {
+      setError(error ?? 'A IA não conseguiu gerar as alternativas.')
+      return
+    }
+    setQuestions((qs) =>
+      qs.map((x) =>
+        x.id === qid
+          ? {
+              ...x,
+              multiple: false,
+              explanation: explanation || x.explanation,
+              answers: options
+                .slice(0, 4)
+                .map((label, i) => ({ id: uid(), label, is_correct: i === correctIndex })),
+            }
+          : x,
+      ),
+    )
+  }
 
   useEffect(() => {
     let active = true
@@ -371,6 +405,8 @@ export function EditorPage() {
               onMoveUp={() => moveQuestion(q.id, -1)}
               onMoveDown={() => moveQuestion(q.id, 1)}
               onChangeType={(t) => changeType(q.id, t)}
+              onAiAssist={() => aiAssist(q.id)}
+              assisting={assistingId === q.id}
               onAddTyped={() => addTypedAnswer(q.id)}
               onRemoveTyped={(aid) => removeTypedAnswer(q.id, aid)}
             />
@@ -559,6 +595,8 @@ function QuestionCard({
   onMoveUp,
   onMoveDown,
   onChangeType,
+  onAiAssist,
+  assisting,
   onAddTyped,
   onRemoveTyped,
 }: {
@@ -577,6 +615,8 @@ function QuestionCard({
   onMoveUp: () => void
   onMoveDown: () => void
   onChangeType: (t: QuestionType) => void
+  onAiAssist: () => void
+  assisting: boolean
   onAddTyped: () => void
   onRemoveTyped: (aid: string) => void
 }) {
@@ -632,6 +672,18 @@ function QuestionCard({
       />
 
       <QuestionImage imageUrl={question.image_url} onChange={(url) => onPatch({ image_url: url })} />
+
+      {question.type === 'multiple' && (
+        <button
+          type="button"
+          onClick={onAiAssist}
+          disabled={assisting}
+          title="A IA cria as alternativas e a explicação a partir do enunciado"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-lilac text-purple-dark font-display font-semibold text-[13px] px-3.5 py-1.5 hover:bg-[#e2d2ff] disabled:opacity-60 cursor-pointer"
+        >
+          {assisting ? '✨ Gerando…' : '✨ IA: gerar alternativas'}
+        </button>
+      )}
 
       <div className="flex flex-wrap gap-3 mt-3">
         <label className="flex items-center gap-2 text-[13px] font-bold text-nav-link">

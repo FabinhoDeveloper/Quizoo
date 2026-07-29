@@ -65,3 +65,32 @@ export async function generateQuizFromMaterial(
 
   return { title: data.title ?? '', questions, error: null }
 }
+
+/** Gera 4 alternativas (com correta) + explicação a partir do enunciado. */
+export async function assistQuestion(
+  prompt: string,
+  correct?: string,
+): Promise<{ options: string[]; correctIndex: number; explanation: string; error: string | null }> {
+  try {
+    const res = await fetch('/api/assist-question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, correct }),
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      options?: string[]
+      correctIndex?: number
+      explanation?: string
+      error?: string
+    }
+    if (!res.ok) return { options: [], correctIndex: 0, explanation: '', error: data.error ?? 'Erro na IA.' }
+    return {
+      options: data.options ?? [],
+      correctIndex: data.correctIndex ?? 0,
+      explanation: data.explanation ?? '',
+      error: null,
+    }
+  } catch {
+    return { options: [], correctIndex: 0, explanation: '', error: 'Não foi possível falar com a IA.' }
+  }
+}
