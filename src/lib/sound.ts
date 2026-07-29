@@ -69,23 +69,94 @@ export function playFanfare() {
   tone(1318.5, 0.5, 0.5, 'triangle', 0.4)
 }
 
-// Música de fundo: acordes suaves em loop.
-const CHORDS = [
-  [261.63, 329.63, 392.0], // C
-  [293.66, 349.23, 440.0], // Dm
-  [349.23, 440.0, 523.25], // F
-  [392.0, 493.88, 587.33], // G
+// Vários temas de música de fundo — cada partida/quiz toca um diferente.
+interface MusicTheme {
+  chords: number[][]
+  interval: number
+  wave: OscillatorType
+  vol: number
+}
+const MUSIC_THEMES: MusicTheme[] = [
+  // 0 — suave (C–Dm–F–G)
+  {
+    chords: [
+      [261.63, 329.63, 392.0],
+      [293.66, 349.23, 440.0],
+      [349.23, 440.0, 523.25],
+      [392.0, 493.88, 587.33],
+    ],
+    interval: 2000,
+    wave: 'sine',
+    vol: 0.06,
+  },
+  // 1 — animado/pop (Am–F–C–G), mais rápido
+  {
+    chords: [
+      [220.0, 261.63, 329.63],
+      [174.61, 220.0, 261.63],
+      [261.63, 329.63, 392.0],
+      [196.0, 246.94, 293.66],
+    ],
+    interval: 1500,
+    wave: 'triangle',
+    vol: 0.055,
+  },
+  // 2 — misterioso (Em–C–G–D)
+  {
+    chords: [
+      [164.81, 196.0, 246.94],
+      [261.63, 329.63, 392.0],
+      [196.0, 246.94, 293.66],
+      [146.83, 185.0, 220.0],
+    ],
+    interval: 2200,
+    wave: 'sine',
+    vol: 0.07,
+  },
+  // 3 — alegre/festivo (F–G–Am–C)
+  {
+    chords: [
+      [349.23, 440.0, 523.25],
+      [392.0, 493.88, 587.33],
+      [440.0, 523.25, 659.25],
+      [523.25, 659.25, 783.99],
+    ],
+    interval: 1700,
+    wave: 'triangle',
+    vol: 0.05,
+  },
 ]
+
+let musicVariant = 0
+/** Deriva um tema (0..n) a partir do id da partida — host e jogadores batem. */
+export function musicVariantFor(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return h % MUSIC_THEMES.length
+}
+/** Escolhe qual tema tocar (0..n). Host e jogadores usam o mesmo, vindo do id da partida. */
+export function setMusicVariant(v: number) {
+  const next = ((v % MUSIC_THEMES.length) + MUSIC_THEMES.length) % MUSIC_THEMES.length
+  if (next !== musicVariant) {
+    musicVariant = next
+    if (musicTimer) {
+      stopMusic()
+      startMusic()
+    }
+  }
+}
+
 export function startMusic() {
   if (muted || musicTimer) return
+  const theme = MUSIC_THEMES[musicVariant]
   let i = 0
   const playChord = () => {
-    const chord = CHORDS[i % CHORDS.length]
-    chord.forEach((f) => tone(f, 0, 1.9, 'sine', 0.06))
+    const chord = theme.chords[i % theme.chords.length]
+    chord.forEach((f) => tone(f, 0, theme.interval / 1000 - 0.1, theme.wave, theme.vol))
     i++
   }
   playChord()
-  musicTimer = setInterval(playChord, 2000)
+  musicTimer = setInterval(playChord, theme.interval)
 }
 
 export function stopMusic() {

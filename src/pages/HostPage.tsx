@@ -7,7 +7,7 @@ import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
 import { Podium } from '../components/Podium'
 import { GameQr } from '../components/GameQr'
-import { playFanfare, playTick, primeAudio, startMusic, stopMusic } from '../lib/sound'
+import { musicVariantFor, playFanfare, playTick, primeAudio, setMusicVariant, startMusic, stopMusic } from '../lib/sound'
 import {
   awardPoints,
   closeChannel,
@@ -21,6 +21,7 @@ import {
   normalizeText,
   openGameChannel,
   persistScores,
+  shuffleArray,
   type HostQuestion,
   type LeaderRow,
   type Player,
@@ -161,6 +162,9 @@ export function HostPage() {
 
   async function showQuestion(i: number) {
     const q = questionsRef.current[i]
+    // Embaralha as alternativas AGORA (aleatório de verdade). O host mostra
+    // essa ordem e envia a mesma no payload, então jogadores veem igual.
+    if (q.type !== 'typed') q.options = shuffleArray(q.options)
     answeredRef.current = new Set()
     setAnsweredCount(0)
     const startedAt = Date.now()
@@ -281,6 +285,7 @@ export function HostPage() {
               type="button"
               onClick={() => {
                 primeAudio()
+                setMusicVariant(musicVariantFor(gameId))
                 startMusic()
                 void showQuestion(0)
               }}

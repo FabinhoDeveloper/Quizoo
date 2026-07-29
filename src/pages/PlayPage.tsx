@@ -8,7 +8,7 @@ import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
 import { Podium } from '../components/Podium'
-import { playCorrect, playFanfare, playTick, playWrong, primeAudio, startMusic, stopMusic } from '../lib/sound'
+import { musicVariantFor, playCorrect, playFanfare, playTick, playWrong, primeAudio, setMusicVariant, startMusic, stopMusic } from '../lib/sound'
 import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
 export function PlayPage() {
@@ -71,12 +71,13 @@ export function PlayPage() {
   useEffect(() => {
     const unlock = () => {
       primeAudio()
+      setMusicVariant(musicVariantFor(gameId))
       startMusic()
       window.removeEventListener('pointerdown', unlock)
     }
     window.addEventListener('pointerdown', unlock, { once: true })
     return () => window.removeEventListener('pointerdown', unlock)
-  }, [])
+  }, [gameId])
 
   // para a música ao sair
   useEffect(() => () => stopMusic(), [])
