@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
 import { uploadImage } from '../lib/storage'
-import { THEMES } from '../lib/themes'
+import { THEMES, isImageTheme, themeBg } from '../lib/themes'
 import {
   emptyAnswer,
   emptyQuestion,
@@ -329,14 +329,19 @@ export function EditorPage() {
                     theme === t.id ? 'border-purple text-purple' : 'border-border text-nav-link hover:border-purple/40'
                   }`}
                 >
-                  <span
-                    className="w-6 h-6 rounded-full border border-black/5"
-                    style={{ background: t.bg }}
-                  />
+                  <span className="w-6 h-6 rounded-full border border-black/5" style={{ background: t.bg }} />
                   {t.name}
                 </button>
               ))}
+              <BgImagePicker current={theme} onPick={setTheme} />
             </div>
+            {isImageTheme(theme) && (
+              <div
+                className="mt-3 rounded-[14px] h-20 border-2 border-purple"
+                style={{ background: themeBg(theme) }}
+                title="Prévia do fundo"
+              />
+            )}
           </div>
         </div>
 
@@ -433,6 +438,52 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   truefalse: 'Verdadeiro/Falso',
   typed: 'Digite a resposta',
   poll: 'Enquete',
+}
+
+function BgImagePicker({ current, onPick }: { current: string; onPick: (v: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const selected = isImageTheme(current)
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    const { url } = await uploadImage(file, 'backgrounds')
+    setBusy(false)
+    if (url) onPick(url)
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleFile(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        title="Enviar imagem de fundo"
+        className={`flex items-center gap-2 rounded-full border-2 border-dashed pl-1 pr-3 py-1 text-[13px] font-semibold transition cursor-pointer disabled:opacity-60 ${
+          selected ? 'border-purple text-purple' : 'border-purple/40 text-purple hover:bg-lilac/40'
+        }`}
+      >
+        <span
+          className="w-6 h-6 rounded-full border border-black/5 grid place-items-center text-[12px] bg-lilac"
+          style={selected ? { background: themeBg(current), backgroundSize: 'cover' } : undefined}
+        >
+          {selected ? '' : '📷'}
+        </span>
+        {busy ? 'Enviando…' : selected ? 'Trocar imagem' : 'Enviar imagem'}
+      </button>
+    </>
+  )
 }
 
 function QuestionImage({ imageUrl, onChange }: { imageUrl: string | null; onChange: (url: string | null) => void }) {
