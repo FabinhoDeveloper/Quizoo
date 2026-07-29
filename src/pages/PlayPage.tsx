@@ -30,6 +30,7 @@ export function PlayPage() {
     }
   })
   const [typedInput, setTypedInput] = useState('')
+  const [multiSel, setMultiSel] = useState<string[]>([])
   const [timeLeft, setTimeLeft] = useState(0)
   const [streak, setStreak] = useState(0)
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -83,6 +84,11 @@ export function PlayPage() {
   // para a música ao sair
   useEffect(() => () => stopMusic(), [])
 
+  // limpa a seleção múltipla ao trocar de pergunta
+  useEffect(() => {
+    setMultiSel([])
+  }, [payload?.position])
+
   // cronômetro local durante a pergunta.
   // Ancora no relógio LOCAL do jogador (quando a pergunta chega), não no
   // horário do host — assim celular e computador não divergem por diferença
@@ -119,11 +125,7 @@ export function PlayPage() {
     revealDoneRef.current = payload.position
     if (game.reveal.pollCounts) return // enquete não tem certo/errado
     if (feedbackMode === 'end') return // só revela no final: sem som de certo/errado agora
-    const gotIt =
-      selected != null &&
-      (game.reveal.correctAnswerId != null
-        ? selected.answerId === game.reveal.correctAnswerId
-        : (game.reveal.acceptedAnswers ?? []).some((a) => normalizeText(a) === normalizeText(selected.answerId)))
+    const gotIt = gotItFor(game.reveal, selected)
     if (gotIt) {
       playCorrect()
       setStreak((s) => s + 1)
@@ -169,6 +171,13 @@ export function PlayPage() {
   function answerTyped() {
     const t = typedInput.trim()
     if (t) submitChoice(t, t)
+  }
+
+  function answerMulti() {
+    if (multiSel.length === 0) return
+    const joined = [...multiSel].sort().join(',')
+    // seleção múltipla vai no typed_text (answer_id fica nulo)
+    submitChoice(joined, joined)
   }
 
   return (
@@ -235,6 +244,44 @@ export function PlayPage() {
                   Enviar resposta
                 </button>
               </form>
+            ) : payload.multiple ? (
+              <>
+                <p className="text-center text-[13px] font-display font-semibold text-body mb-2">
+                  Marque TODAS as corretas e confirme
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {payload.options.map((o, i) => {
+                    const s = answerStyle(i)
+                    const on = multiSel.includes(o.id)
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() =>
+                          setMultiSel((sel) => (sel.includes(o.id) ? sel.filter((x) => x !== o.id) : [...sel, o.id]))
+                        }
+                        className={`flex items-center gap-3 rounded-[16px] px-5 py-6 text-white text-left transition cursor-pointer ${
+                          on ? 'ring-4 ring-white/90 brightness-105' : 'opacity-90 hover:brightness-105'
+                        }`}
+                        style={{ background: s.bg }}
+                      >
+                        <span className="w-7 h-7 shrink-0 rounded-md grid place-items-center bg-white/25 font-bold">
+                          {on ? '✓' : ''}
+                        </span>
+                        <span className="font-display font-semibold text-[18px]">{o.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={answerMulti}
+                  disabled={multiSel.length === 0}
+                  className="w-full mt-3 font-display font-semibold rounded-2xl px-8 py-4 text-[18px] text-ink bg-yellow shadow-[0_5px_0_#B98400] hover:translate-y-0.5 disabled:opacity-50 cursor-pointer"
+                >
+                  Confirmar {multiSel.length > 0 ? `(${multiSel.length})` : ''}
+                </button>
+              </>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {payload.options.map((o, i) => {
@@ -296,14 +343,7 @@ export function PlayPage() {
 
         {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && feedbackMode !== 'end' && (
           <RevealCard
-            gotIt={
-              selected != null &&
-              (game.reveal.correctAnswerId != null
-                ? selected.answerId === game.reveal.correctAnswerId
-                : (game.reveal.acceptedAnswers ?? []).some(
-                    (a) => normalizeText(a) === normalizeText(selected.answerId),
-                  ))
-            }
+            gotIt={gotItFor(game.reveal, selected)}
             answered={selected != null}
             myScore={game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0}
             myRank={rankOf(game.reveal.leaderboard, playerId)}
@@ -368,6 +408,21 @@ export function PlayPage() {
 function rankOf(board: { playerId: string }[], playerId: string) {
   const i = board.findIndex((r) => r.playerId === playerId)
   return i < 0 ? board.length : i + 1
+}
+
+/** Acertou? Cobre escolha única, digitada e seleção múltipla (conjunto exato). */
+function gotItFor(
+  reveal: { correctAnswerId: string | null; correctAnswerIds?: string[]; acceptedAnswers?: string[] },
+  selected: { answerId: string } | null,
+): boolean {
+  if (!selected) return false
+  if (reveal.correctAnswerIds && reveal.correctAnswerIds.length) {
+    const mine = selected.answerId.split(',').filter(Boolean).sort().join(',')
+    const correct = [...reveal.correctAnswerIds].sort().join(',')
+    return mine === correct
+  }
+  if (reveal.correctAnswerId != null) return selected.answerId === reveal.correctAnswerId
+  return (reveal.acceptedAnswers ?? []).some((a) => normalizeText(a) === normalizeText(selected.answerId))
 }
 
 function RevealCard({

@@ -183,7 +183,10 @@ export function HostPage() {
     if (phaseRef.current !== 'question') return
     setPhaseSafe('reveal')
     const q = questionsRef.current[indexRef.current]
+    const isMulti = q.type === 'multiple' && !!q.multiple
     const correctId = q.type === 'typed' ? null : q.options.find((o) => o.is_correct)?.id ?? null
+    const correctIds = q.options.filter((o) => o.is_correct).map((o) => o.id)
+    const correctKey = [...correctIds].sort().join(',')
     // Em "digite a resposta", TODA alternativa marcada is_correct é uma resposta aceita.
     const acceptedLabels = q.options.filter((o) => o.is_correct).map((o) => o.label)
     const acceptedNorms = acceptedLabels.map((l) => normalizeText(l))
@@ -198,8 +201,15 @@ export function HostPage() {
       if (!row) return
       // Enquete não tem resposta certa: 0 pontos.
       if (q.type === 'poll') return
-      const correct =
-        q.type === 'typed' ? acceptedNorms.includes(normalizeText(a.typed_text ?? '')) : a.answer_id === correctId
+      const correct = isMulti
+        ? (a.typed_text ?? '')
+            .split(',')
+            .filter(Boolean)
+            .sort()
+            .join(',') === correctKey
+        : q.type === 'typed'
+          ? acceptedNorms.includes(normalizeText(a.typed_text ?? ''))
+          : a.answer_id === correctId
       const base = awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
       // Sequência de acertos: a partir do 3º acerto seguido, ganha bônus (até +500).
       const prevStreak = streaksRef.current.get(a.player_id) ?? 0
@@ -222,6 +232,7 @@ export function HostPage() {
     setPollResult(pollCounts ?? [])
     await hostReveal(gameId, correctId, board, {
       acceptedAnswers: q.type === 'typed' ? acceptedLabels : undefined,
+      correctAnswerIds: isMulti ? correctIds : undefined,
       pollCounts,
     })
   }
@@ -244,7 +255,6 @@ export function HostPage() {
   }
 
   const q = questionsRef.current[index]
-  const correctId = q?.options.find((o) => o.is_correct)?.id
   const isLast = index >= questionsRef.current.length - 1
 
   return (
@@ -360,7 +370,13 @@ export function HostPage() {
         {phase === 'reveal' && q && (
           <div>
             <h2 className="font-display font-semibold text-[24px] text-heading text-center mb-4">
-              {q.type === 'poll' ? 'Resultado da enquete' : q.type === 'typed' ? 'Respostas aceitas' : 'Resposta certa'}
+              {q.type === 'poll'
+                ? 'Resultado da enquete'
+                : q.type === 'typed'
+                  ? 'Respostas aceitas'
+                  : q.multiple
+                    ? 'Respostas certas'
+                    : 'Resposta certa'}
             </h2>
             {q.type === 'poll' ? (
               <div className="flex flex-col gap-3 mb-8 max-w-[520px] mx-auto">
@@ -402,7 +418,7 @@ export function HostPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                 {q.options.map((o, i) => {
                   const s = answerStyle(i)
-                  const correct = o.id === correctId
+                  const correct = o.is_correct
                   return (
                     <div
                       key={o.id}

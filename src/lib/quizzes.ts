@@ -16,6 +16,7 @@ export interface QuestionDraft {
   time_limit: number
   points: number
   image_url: string | null
+  multiple: boolean // múltipla escolha com VÁRIAS corretas
   answers: AnswerDraft[]
 }
 
@@ -38,7 +39,7 @@ export function emptyAnswer(): AnswerDraft {
 export function newQuestion(type: QuestionType = 'multiple'): QuestionDraft {
   // Tempo padrão por tipo: V/F é rápido; digitar precisa de mais tempo.
   const defaultTime = type === 'truefalse' ? 15 : type === 'typed' ? 30 : 20
-  const base = { id: uid(), type, prompt: '', time_limit: defaultTime, points: 1000, image_url: null }
+  const base = { id: uid(), type, prompt: '', time_limit: defaultTime, points: 1000, image_url: null, multiple: false }
   if (type === 'truefalse') {
     return {
       ...base,
@@ -146,7 +147,7 @@ export async function getQuizForEdit(quizId: string): Promise<{
 
   const { data: questions, error: qsErr } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, multiple, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qsErr) return { quiz: quizOut, questions: [], error: qsErr.message }
@@ -158,6 +159,7 @@ export async function getQuizForEdit(quizId: string): Promise<{
     time_limit: q.time_limit,
     points: q.points,
     image_url: q.image_url ?? null,
+    multiple: q.multiple ?? false,
     answers: (q.answers ?? [])
       .sort((a, b) => a.position - b.position)
       .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
@@ -193,7 +195,7 @@ export async function saveQuiz(
     const q = questions[i]
     const { data: qRow, error: qErr } = await supabase
       .from('questions')
-      .insert({ quiz_id: quizId, position: i, type: q.type, prompt: q.prompt, time_limit: q.time_limit, points: q.points, image_url: q.image_url })
+      .insert({ quiz_id: quizId, position: i, type: q.type, prompt: q.prompt, time_limit: q.time_limit, points: q.points, image_url: q.image_url, multiple: q.type === 'multiple' ? q.multiple : false })
       .select('id')
       .single()
     if (qErr) return { error: qErr.message }

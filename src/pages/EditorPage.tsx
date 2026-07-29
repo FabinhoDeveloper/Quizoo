@@ -75,6 +75,38 @@ export function EditorPage() {
     )
   }
 
+  // Seleção múltipla: alterna a correta sem desmarcar as outras.
+  function toggleCorrect(qid: string, aid: string) {
+    setQuestions((qs) =>
+      qs.map((q) =>
+        q.id === qid
+          ? { ...q, answers: q.answers.map((a) => (a.id === aid ? { ...a, is_correct: !a.is_correct } : a)) }
+          : q,
+      ),
+    )
+  }
+
+  function setMultiple(qid: string, on: boolean) {
+    setQuestions((qs) =>
+      qs.map((q) => {
+        if (q.id !== qid) return q
+        // ao voltar pra simples, mantém só a 1ª correta
+        if (!on) {
+          let kept = false
+          const answers = q.answers.map((a) => {
+            if (a.is_correct && !kept) {
+              kept = true
+              return a
+            }
+            return { ...a, is_correct: false }
+          })
+          return { ...q, multiple: false, answers }
+        }
+        return { ...q, multiple: true }
+      }),
+    )
+  }
+
   function addQuestion(type: QuestionType) {
     setQuestions((qs) => [...qs, newQuestion(type)])
   }
@@ -123,7 +155,7 @@ export function EditorPage() {
             is_correct: newType === 'multiple' ? i === 0 : false,
           }))
         }
-        return { ...q, type: newType, answers }
+        return { ...q, type: newType, multiple: false, answers }
       }),
     )
   }
@@ -327,6 +359,8 @@ export function EditorPage() {
               onPatch={(patch) => patchQuestion(q.id, patch)}
               onPatchAnswer={(aid, label) => patchAnswer(q.id, aid, label)}
               onSetCorrect={(aid) => setCorrect(q.id, aid)}
+              onToggleCorrect={(aid) => toggleCorrect(q.id, aid)}
+              onSetMultiple={(on) => setMultiple(q.id, on)}
               onRemove={() => removeQuestion(q.id)}
               onDuplicate={() => duplicateQuestion(q.id)}
               onMoveUp={() => moveQuestion(q.id, -1)}
@@ -467,6 +501,8 @@ function QuestionCard({
   onPatch,
   onPatchAnswer,
   onSetCorrect,
+  onToggleCorrect,
+  onSetMultiple,
   onRemove,
   onDuplicate,
   onMoveUp,
@@ -483,6 +519,8 @@ function QuestionCard({
   onPatch: (patch: Partial<QuestionDraft>) => void
   onPatchAnswer: (aid: string, label: string) => void
   onSetCorrect: (aid: string) => void
+  onToggleCorrect: (aid: string) => void
+  onSetMultiple: (on: boolean) => void
   onRemove: () => void
   onDuplicate: () => void
   onMoveUp: () => void
@@ -618,9 +656,26 @@ function QuestionCard({
         </>
       ) : (
         <>
-          <p className="text-[12px] text-muted mt-4 mb-2 font-bold uppercase tracking-wide">
-            {question.type === 'poll' ? 'Opções da enquete (sem resposta certa)' : 'Toque no ✓ para marcar a correta'}
-          </p>
+          <div className="flex items-center justify-between gap-2 mt-4 mb-2 flex-wrap">
+            <p className="text-[12px] text-muted font-bold uppercase tracking-wide">
+              {question.type === 'poll'
+                ? 'Opções da enquete (sem resposta certa)'
+                : question.multiple
+                  ? 'Marque TODAS as corretas'
+                  : 'Toque no ✓ para marcar a correta'}
+            </p>
+            {question.type === 'multiple' && (
+              <label className="flex items-center gap-1.5 text-[12px] font-bold text-nav-link cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={question.multiple}
+                  onChange={(e) => onSetMultiple(e.target.checked)}
+                  className="w-4 h-4 accent-purple cursor-pointer"
+                />
+                Permitir várias respostas certas
+              </label>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {question.answers.map((a, ai) => {
               const style = answerStyle(ai)
@@ -645,11 +700,11 @@ function QuestionCard({
                   {question.type !== 'poll' && (
                     <button
                       type="button"
-                      onClick={() => onSetCorrect(a.id)}
+                      onClick={() => (question.multiple ? onToggleCorrect(a.id) : onSetCorrect(a.id))}
                       aria-label="Marcar como correta"
-                      className={`shrink-0 w-7 h-7 rounded-full grid place-items-center font-bold transition-colors ${
-                        a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'
-                      }`}
+                      className={`shrink-0 w-7 h-7 grid place-items-center font-bold transition-colors ${
+                        question.multiple ? 'rounded-[8px]' : 'rounded-full'
+                      } ${a.is_correct ? 'bg-white text-teal' : 'bg-white/25 text-white hover:bg-white/40'}`}
                     >
                       ✓
                     </button>

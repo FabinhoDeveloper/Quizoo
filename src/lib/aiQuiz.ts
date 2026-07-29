@@ -57,6 +57,7 @@ export async function generateQuizFromMaterial(
     time_limit: time === 'auto' ? autoTime(q.prompt, q.options) : time,
     points: 1000,
     image_url: null,
+    multiple: false,
     answers: q.options.map((label, i) => ({ id: uid(), label, is_correct: i === q.correctIndex })),
   }))
 

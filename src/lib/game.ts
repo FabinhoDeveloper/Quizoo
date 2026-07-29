@@ -28,6 +28,7 @@ export interface QuestionPayload {
   total: number
   prompt: string
   imageUrl?: string | null
+  multiple?: boolean
   options: OptionPayload[]
   timeLimit: number
   points: number
@@ -43,6 +44,7 @@ export interface LeaderRow {
 
 export interface RevealPayload {
   correctAnswerId: string | null
+  correctAnswerIds?: string[] // seleção múltipla: todas as corretas
   acceptedAnswers?: string[]
   pollCounts?: { label: string; count: number }[]
   leaderboard: LeaderRow[]
@@ -70,6 +72,7 @@ export interface HostQuestion {
   time_limit: number
   points: number
   image_url?: string | null
+  multiple?: boolean
   options: { id: string; label: string; is_correct: boolean }[]
 }
 
@@ -104,7 +107,7 @@ export async function hostGame(
 ): Promise<{ gameId: string; pin: string; questions: HostQuestion[]; error: string | null }> {
   const { data: questions, error: qErr } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, multiple, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qErr) return { gameId: '', pin: '', questions: [], error: qErr.message }
@@ -125,6 +128,7 @@ export async function hostGame(
     time_limit: q.time_limit,
     points: q.points,
     image_url: q.image_url ?? null,
+    multiple: q.multiple ?? false,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -155,7 +159,7 @@ export async function hostGame(
 export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]> {
   const { data } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, multiple, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   return (data ?? []).map((q) => ({
@@ -165,6 +169,7 @@ export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]>
     time_limit: q.time_limit,
     points: q.points,
     image_url: q.image_url ?? null,
+    multiple: q.multiple ?? false,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -261,6 +266,7 @@ function sanitize(q: HostQuestion, position: number, total: number, startedAt: s
     total,
     prompt: q.prompt,
     imageUrl: q.image_url ?? null,
+    multiple: q.type === 'multiple' ? !!q.multiple : false,
     timeLimit: q.time_limit,
     points: q.points,
     startedAt,
@@ -291,13 +297,23 @@ export async function hostReveal(
   gameId: string,
   correctAnswerId: string | null,
   leaderboard: LeaderRow[],
-  extra?: { acceptedAnswers?: string[]; pollCounts?: { label: string; count: number }[] },
+  extra?: {
+    acceptedAnswers?: string[]
+    correctAnswerIds?: string[]
+    pollCounts?: { label: string; count: number }[]
+  },
 ) {
   await supabase
     .from('games')
     .update({
       status: 'reveal',
-      reveal: { correctAnswerId, acceptedAnswers: extra?.acceptedAnswers, pollCounts: extra?.pollCounts, leaderboard },
+      reveal: {
+        correctAnswerId,
+        acceptedAnswers: extra?.acceptedAnswers,
+        correctAnswerIds: extra?.correctAnswerIds,
+        pollCounts: extra?.pollCounts,
+        leaderboard,
+      },
     })
     .eq('id', gameId)
 }
