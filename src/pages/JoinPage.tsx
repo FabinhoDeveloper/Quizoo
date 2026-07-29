@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { joinGame } from '../lib/game'
 import { PRESET_AVATARS, avatarBg, randomAvatar } from '../lib/avatars'
+import { randomNickname } from '../lib/nicknames'
 
 export function JoinPage() {
   const navigate = useNavigate()
@@ -53,12 +54,22 @@ export function JoinPage() {
               inputMode="numeric"
               className="rounded-[14px] border-2 border-border px-4 py-4 text-center text-[26px] tracking-[0.3em] font-display font-semibold text-heading outline-none focus:border-purple"
             />
-            <input
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value.slice(0, 20))}
-              placeholder="Seu apelido"
-              className="rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple"
-            />
+            <div className="flex gap-2">
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value.slice(0, 20))}
+                placeholder="Seu apelido"
+                className="flex-1 rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => setNickname(randomNickname())}
+                title="Gerar um apelido aleatório"
+                className="shrink-0 rounded-[14px] border-2 border-border px-3 text-[18px] hover:border-purple/50 cursor-pointer"
+              >
+                🎲
+              </button>
+            </div>
 
             <div>
               <p className="text-[13px] font-display font-semibold text-body mb-2">Escolha seu avatar</p>

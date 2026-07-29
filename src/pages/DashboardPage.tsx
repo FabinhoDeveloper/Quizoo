@@ -169,6 +169,15 @@ export function DashboardPage() {
                   >
                     Jogar
                   </button>
+                  {q.question_count > 0 && (
+                    <Link
+                      to={`/solo/${q.id}`}
+                      title="Praticar sozinho, no seu ritmo"
+                      className="font-display font-semibold rounded-[12px] px-4 py-2 text-[14px] text-teal bg-teal-light hover:brightness-95 cursor-pointer"
+                    >
+                      Praticar
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleDelete(q.id, q.title)}

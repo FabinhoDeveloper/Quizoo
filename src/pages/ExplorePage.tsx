@@ -78,14 +78,22 @@ export function ExplorePage() {
                   por {q.author} · {q.question_count} {q.question_count === 1 ? 'pergunta' : 'perguntas'}
                 </p>
                 {q.description && <p className="text-[14px] text-body mt-2 line-clamp-2">{q.description}</p>}
-                <button
-                  type="button"
-                  onClick={() => handleUse(q.id)}
-                  disabled={cloningId === q.id}
-                  className="mt-4 self-start font-display font-semibold rounded-[12px] px-5 py-2.5 text-[14px] text-white bg-purple shadow-[0_4px_0_#3A0E86] hover:translate-y-0.5 disabled:opacity-60 cursor-pointer"
-                >
-                  {cloningId === q.id ? 'Copiando…' : 'Usar este quiz'}
-                </button>
+                <div className="mt-4 flex items-center gap-2.5 flex-wrap">
+                  <Link
+                    to={`/solo/${q.id}`}
+                    className="font-display font-semibold rounded-[12px] px-5 py-2.5 text-[14px] text-teal bg-teal-light hover:brightness-95 cursor-pointer"
+                  >
+                    Praticar
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleUse(q.id)}
+                    disabled={cloningId === q.id}
+                    className="font-display font-semibold rounded-[12px] px-5 py-2.5 text-[14px] text-white bg-purple shadow-[0_4px_0_#3A0E86] hover:translate-y-0.5 disabled:opacity-60 cursor-pointer"
+                  >
+                    {cloningId === q.id ? 'Copiando…' : 'Usar este quiz'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
