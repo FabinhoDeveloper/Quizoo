@@ -8,6 +8,7 @@ import { PulseTimer } from '../components/PulseTimer'
 import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
 import { Podium } from '../components/Podium'
+import { themeBg } from '../lib/themes'
 import { musicVariantFor, playCorrect, playFanfare, playTick, playWrong, primeAudio, setMusicVariant, startMusic, stopMusic } from '../lib/sound'
 import { closeChannel, getGame, normalizeText, openGameChannel, submitAnswer, type GameRow } from '../lib/game'
 
@@ -171,7 +172,7 @@ export function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ background: themeBg(game?.theme) }}>
       <MuteButton className="fixed top-4 right-4 z-50 shadow-md" />
       <div className="max-w-[560px] mx-auto px-4 py-6">
         <Link to="/" className="flex justify-center mb-6">

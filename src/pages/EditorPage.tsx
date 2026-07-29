@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { answerStyle } from '../lib/answerStyles'
 import { uploadImage } from '../lib/storage'
+import { THEMES } from '../lib/themes'
 import {
   emptyAnswer,
   emptyQuestion,
@@ -10,6 +11,7 @@ import {
   newQuestion,
   saveQuiz,
   setPublished,
+  type AnswerDraft,
   type FeedbackMode,
   type QuestionDraft,
   type QuestionType,
@@ -29,6 +31,7 @@ export function EditorPage() {
   const [isPublished, setIsPublished] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>('immediate')
+  const [theme, setTheme] = useState('default')
 
   useEffect(() => {
     let active = true
@@ -44,6 +47,7 @@ export function EditorPage() {
       setQuestions(res.questions.length ? res.questions : [emptyQuestion()])
       setIsPublished(res.quiz.is_published)
       setFeedbackMode(res.quiz.feedback_mode ?? 'immediate')
+      setTheme(res.quiz.theme ?? 'default')
       setLoading(false)
     })
     return () => {
@@ -95,6 +99,35 @@ export function EditorPage() {
     })
   }
 
+  function changeType(qid: string, newType: QuestionType) {
+    setQuestions((qs) =>
+      qs.map((q) => {
+        if (q.id !== qid || q.type === newType) return q
+        const labels = q.answers.map((a) => a.label)
+        const nonEmpty = labels.filter((l) => l.trim() !== '')
+        let answers: AnswerDraft[]
+        if (newType === 'truefalse') {
+          answers = [
+            { id: uid(), label: 'Verdadeiro', is_correct: true },
+            { id: uid(), label: 'Falso', is_correct: false },
+          ]
+        } else if (newType === 'typed') {
+          answers = (nonEmpty.length ? nonEmpty : ['']).map((l) => ({ id: uid(), label: l, is_correct: true }))
+        } else {
+          // multiple ou poll: mantém até 4 rótulos existentes
+          const base = (labels.length ? labels : ['', '', '', '']).slice(0, 4)
+          while (base.length < 4) base.push('')
+          answers = base.map((l, i) => ({
+            id: uid(),
+            label: l,
+            is_correct: newType === 'multiple' ? i === 0 : false,
+          }))
+        }
+        return { ...q, type: newType, answers }
+      }),
+    )
+  }
+
   function moveQuestion(qid: string, dir: -1 | 1) {
     setQuestions((qs) => {
       const i = qs.findIndex((q) => q.id === qid)
@@ -144,7 +177,7 @@ export function EditorPage() {
     }
     setError(null)
     setSaving(true)
-    const { error } = await saveQuiz(id, { title, description, feedback_mode: feedbackMode }, questions)
+    const { error } = await saveQuiz(id, { title, description, feedback_mode: feedbackMode, theme }, questions)
     setSaving(false)
     if (error) {
       setError(error)
@@ -250,6 +283,29 @@ export function EditorPage() {
               </button>
             </div>
           </div>
+
+          <div className="mt-5 pt-5 border-t-2 border-border">
+            <p className="text-[13px] font-bold text-nav-link mb-2.5">Tema de fundo</p>
+            <div className="flex flex-wrap gap-2">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTheme(t.id)}
+                  title={t.name}
+                  className={`flex items-center gap-2 rounded-full border-2 pl-1 pr-3 py-1 text-[13px] font-semibold transition cursor-pointer ${
+                    theme === t.id ? 'border-purple text-purple' : 'border-border text-nav-link hover:border-purple/40'
+                  }`}
+                >
+                  <span
+                    className="w-6 h-6 rounded-full border border-black/5"
+                    style={{ background: t.bg }}
+                  />
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -275,6 +331,7 @@ export function EditorPage() {
               onDuplicate={() => duplicateQuestion(q.id)}
               onMoveUp={() => moveQuestion(q.id, -1)}
               onMoveDown={() => moveQuestion(q.id, 1)}
+              onChangeType={(t) => changeType(q.id, t)}
               onAddTyped={() => addTypedAnswer(q.id)}
               onRemoveTyped={(aid) => removeTypedAnswer(q.id, aid)}
             />
@@ -414,6 +471,7 @@ function QuestionCard({
   onDuplicate,
   onMoveUp,
   onMoveDown,
+  onChangeType,
   onAddTyped,
   onRemoveTyped,
 }: {
@@ -429,6 +487,7 @@ function QuestionCard({
   onDuplicate: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  onChangeType: (t: QuestionType) => void
   onAddTyped: () => void
   onRemoveTyped: (aid: string) => void
 }) {
@@ -439,9 +498,18 @@ function QuestionCard({
       <div className="flex items-center justify-between mb-3 gap-2">
         <span className="flex items-center gap-2 min-w-0">
           <span className="font-display font-semibold text-[15px] text-purple shrink-0">Pergunta {index + 1}</span>
-          <span className="text-[11px] font-bold uppercase tracking-wide text-purple-dark bg-lilac px-2 py-0.5 rounded-full truncate">
-            {TYPE_LABEL[question.type]}
-          </span>
+          <select
+            value={question.type}
+            onChange={(e) => onChangeType(e.target.value as QuestionType)}
+            title="Tipo da pergunta"
+            className="text-[12px] font-bold text-purple-dark bg-lilac rounded-full px-2.5 py-1 outline-none cursor-pointer border-2 border-transparent hover:border-purple/30 max-w-[150px]"
+          >
+            {(Object.keys(TYPE_LABEL) as QuestionType[]).map((t) => (
+              <option key={t} value={t}>
+                {TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
         </span>
         <div className="flex items-center gap-1.5 shrink-0">
           <button type="button" onClick={onMoveUp} disabled={isFirst} title="Mover para cima" className={iconBtn}>
@@ -491,20 +559,25 @@ function QuestionCard({
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-[13px] font-bold text-nav-link">
-          Pontos
-          <select
-            value={question.points}
-            onChange={(e) => onPatch({ points: Number(e.target.value) })}
-            className="rounded-[10px] border-2 border-border px-2 py-1.5 text-[14px] text-heading outline-none focus:border-purple"
-          >
-            {[500, 1000, 2000].map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
+        {question.type !== 'poll' && (
+          <div className="flex items-center gap-2 text-[13px] font-bold text-nav-link">
+            Pontos
+            <div className="inline-flex bg-lilac/40 rounded-[10px] p-0.5">
+              {([['Nenhum', 0], ['Padrão', 1000], ['Dupla', 2000]] as [string, number][]).map(([label, val]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => onPatch({ points: val })}
+                  className={`rounded-[8px] px-3 py-1.5 text-[13px] font-semibold transition cursor-pointer ${
+                    question.points === val ? 'bg-white text-purple shadow-sm' : 'text-purple-dark/70'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {question.type === 'typed' ? (

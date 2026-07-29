@@ -59,6 +59,7 @@ export interface GameRow {
   current_payload: QuestionPayload | null
   reveal: RevealPayload | null
   feedback_mode: 'immediate' | 'end'
+  theme: string
 }
 
 /** Pergunta completa do lado do host — inclui a resposta certa, NUNCA enviada aos jogadores. */
@@ -112,6 +113,10 @@ export async function hostGame(
 
   const { data: quizRow } = await supabase.from('quizzes').select('feedback_mode').eq('id', quizId).single()
   const feedbackMode = (quizRow?.feedback_mode ?? 'immediate') as 'immediate' | 'end'
+  // theme à parte: tolera a coluna ainda não existir (migration pendente)
+  let theme = 'default'
+  const themeRes = await supabase.from('quizzes').select('theme').eq('id', quizId).single()
+  if (!themeRes.error && themeRes.data) theme = ((themeRes.data as { theme?: string }).theme ?? 'default') as string
 
   const hostQuestions: HostQuestion[] = questions.map((q) => ({
     id: q.id,
@@ -134,7 +139,11 @@ export async function hostGame(
       .insert({ quiz_id: quizId, host: hostId, pin, status: 'lobby', current_position: -1, feedback_mode: feedbackMode })
       .select('id')
       .single()
-    if (!error && data) return { gameId: data.id, pin, questions: hostQuestions, error: null }
+    if (!error && data) {
+      // theme à parte: tolera a coluna ainda não existir (migration pendente)
+      if (theme !== 'default') await supabase.from('games').update({ theme }).eq('id', data.id)
+      return { gameId: data.id, pin, questions: hostQuestions, error: null }
+    }
     if (error && !error.message.toLowerCase().includes('duplicate')) {
       return { gameId: '', pin: '', questions: [], error: error.message }
     }

@@ -7,6 +7,7 @@ import { MuteButton } from '../components/MuteButton'
 import { Avatar } from '../components/Avatar'
 import { Podium } from '../components/Podium'
 import { GameQr } from '../components/GameQr'
+import { themeBg } from '../lib/themes'
 import { musicVariantFor, playFanfare, playTick, primeAudio, setMusicVariant, startMusic, stopMusic } from '../lib/sound'
 import {
   awardPoints,
@@ -42,6 +43,7 @@ export function HostPage() {
   const [answeredCount, setAnsweredCount] = useState(0)
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([])
   const [pollResult, setPollResult] = useState<{ label: string; count: number }[]>([])
+  const [theme, setTheme] = useState('default')
   const [error, setError] = useState<string | null>(null)
 
   const questionsRef = useRef<HostQuestion[]>([])
@@ -71,6 +73,7 @@ export function HostPage() {
         return
       }
       setPin(game.pin)
+      setTheme(game.theme ?? 'default')
       questionsRef.current = await loadHostQuestions(game.quiz_id)
       const roster = await getPlayers(gameId)
       if (!active) return
@@ -245,7 +248,7 @@ export function HostPage() {
   const isLast = index >= questionsRef.current.length - 1
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ background: themeBg(theme) }}>
       <MuteButton className="fixed top-4 right-4 z-50 shadow-md" />
       <div className="max-w-[1000px] mx-auto px-4 sm:px-8 py-6">
         {error && <p className="text-pink font-semibold mb-4">{error}</p>}

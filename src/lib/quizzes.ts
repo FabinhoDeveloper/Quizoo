@@ -113,7 +113,14 @@ export async function createQuiz(ownerId: string): Promise<{ id: string | null; 
 
 /** Carrega um quiz com todas as perguntas e respostas, prontas para edição. */
 export async function getQuizForEdit(quizId: string): Promise<{
-  quiz: { id: string; title: string; description: string | null; is_published: boolean; feedback_mode: FeedbackMode } | null
+  quiz: {
+    id: string
+    title: string
+    description: string | null
+    is_published: boolean
+    feedback_mode: FeedbackMode
+    theme: string
+  } | null
   questions: QuestionDraft[]
   error: string | null
 }> {
@@ -124,12 +131,25 @@ export async function getQuizForEdit(quizId: string): Promise<{
     .single()
   if (qErr) return { quiz: null, questions: [], error: qErr.message }
 
+  // theme é buscado à parte e tolera a coluna ainda não existir (migration pendente)
+  let theme = 'default'
+  const themeRes = await supabase.from('quizzes').select('theme').eq('id', quizId).single()
+  if (!themeRes.error && themeRes.data) theme = (themeRes.data as { theme?: string }).theme ?? 'default'
+  const quizOut = { ...(quiz as Record<string, unknown>), theme } as {
+    id: string
+    title: string
+    description: string | null
+    is_published: boolean
+    feedback_mode: FeedbackMode
+    theme: string
+  }
+
   const { data: questions, error: qsErr } = await supabase
     .from('questions')
     .select('id, type, prompt, time_limit, points, position, image_url, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
-  if (qsErr) return { quiz, questions: [], error: qsErr.message }
+  if (qsErr) return { quiz: quizOut, questions: [], error: qsErr.message }
 
   const drafts: QuestionDraft[] = (questions ?? []).map((q) => ({
     id: q.id,
@@ -143,13 +163,13 @@ export async function getQuizForEdit(quizId: string): Promise<{
       .map((a) => ({ id: a.id, label: a.label, is_correct: a.is_correct })),
   }))
 
-  return { quiz, questions: drafts, error: null }
+  return { quiz: quizOut, questions: drafts, error: null }
 }
 
 /** Salva o quiz: atualiza o cabeçalho e regrava todas as perguntas/respostas. */
 export async function saveQuiz(
   quizId: string,
-  header: { title: string; description: string; feedback_mode?: FeedbackMode },
+  header: { title: string; description: string; feedback_mode?: FeedbackMode; theme?: string },
   questions: QuestionDraft[],
 ): Promise<{ error: string | null }> {
   const up = await supabase
@@ -162,6 +182,9 @@ export async function saveQuiz(
     })
     .eq('id', quizId)
   if (up.error) return { error: up.error.message }
+
+  // theme à parte: tolera a coluna ainda não existir (migration pendente)
+  await supabase.from('quizzes').update({ theme: header.theme ?? 'default' }).eq('id', quizId)
 
   const del = await supabase.from('questions').delete().eq('quiz_id', quizId)
   if (del.error) return { error: del.error.message }
@@ -244,7 +267,7 @@ export async function cloneQuiz(sourceQuizId: string, ownerId: string): Promise<
 
   const { error: saveErr } = await saveQuiz(
     id,
-    { title: `${quiz.title} (cópia)`, description: quiz.description ?? '', feedback_mode: quiz.feedback_mode },
+    { title: `${quiz.title} (cópia)`, description: quiz.description ?? '', feedback_mode: quiz.feedback_mode, theme: quiz.theme },
     questions,
   )
   if (saveErr) return { id: null, error: saveErr }

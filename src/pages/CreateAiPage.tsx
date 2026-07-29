@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { useAuth } from '../context/AuthContext'
 import { extractPdfText } from '../lib/pdfExtract'
+import { extractPptxText } from '../lib/pptxExtract'
 import { generateQuizFromMaterial, type Difficulty, type TimeOption } from '../lib/aiQuiz'
 import { createQuiz, saveQuiz } from '../lib/quizzes'
 
@@ -30,7 +31,8 @@ export function CreateAiPage() {
     if (!file) return
     setError(null)
     setFileName(file.name)
-    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    const lower = file.name.toLowerCase()
+    if (file.type === 'application/pdf' || lower.endsWith('.pdf')) {
       setBusy(true)
       setStatus('Lendo o PDF…')
       try {
@@ -39,6 +41,20 @@ export function CreateAiPage() {
         setStatus(`PDF lido: ${text.length.toLocaleString('pt-BR')} caracteres.`)
       } catch {
         setError('Não consegui ler esse PDF. Ele pode ser só imagem/escaneado — cole o texto abaixo.')
+        setStatus(null)
+      } finally {
+        setBusy(false)
+      }
+    } else if (lower.endsWith('.pptx')) {
+      setBusy(true)
+      setStatus('Lendo os slides…')
+      try {
+        const text = await extractPptxText(file)
+        if (text.length < 20) throw new Error('vazio')
+        setMaterial(text)
+        setStatus(`Slides lidos: ${text.length.toLocaleString('pt-BR')} caracteres.`)
+      } catch {
+        setError('Não consegui ler esse arquivo de slides. Salve como .pptx ou cole o texto abaixo.')
         setStatus(null)
       } finally {
         setBusy(false)
@@ -127,15 +143,15 @@ export function CreateAiPage() {
         <label className="block bg-white border-2 border-dashed border-purple/40 rounded-[20px] p-7 text-center cursor-pointer hover:bg-lilac/30 transition-colors">
           <input
             type="file"
-            accept="application/pdf,.pdf,.txt,.md"
+            accept="application/pdf,.pdf,.txt,.md,.pptx"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
           <div className="text-4xl mb-2">📄</div>
           <div className="font-display font-semibold text-heading">
-            {fileName || 'Clique para enviar um PDF ou texto'}
+            {fileName || 'Clique para enviar um PDF, slides ou texto'}
           </div>
-          <div className="text-[13px] text-muted mt-1">PDF, TXT ou MD</div>
+          <div className="text-[13px] text-muted mt-1">PDF, PPTX (slides), TXT ou MD</div>
         </label>
 
         <div className="text-center text-[13px] text-muted my-3">ou cole o material aqui</div>
