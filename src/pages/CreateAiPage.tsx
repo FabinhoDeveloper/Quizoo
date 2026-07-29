@@ -18,6 +18,7 @@ export function CreateAiPage() {
 
   const [fileName, setFileName] = useState('')
   const [material, setMaterial] = useState('')
+  const [url, setUrl] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medio')
   const [count, setCount] = useState(10)
   const [timeOption, setTimeOption] = useState<TimeOption>('auto')
@@ -51,15 +52,21 @@ export function CreateAiPage() {
 
   async function handleGenerate() {
     if (!user) return
-    if (material.trim().length < 40) {
-      setError('Envie um PDF com texto ou cole o material (pelo menos algumas frases).')
+    const hasUrl = url.trim().length > 0
+    if (!hasUrl && material.trim().length < 40) {
+      setError('Cole um link, envie um PDF com texto, ou cole o material (pelo menos algumas frases).')
       return
     }
     setError(null)
     setBusy(true)
-    setStatus('A IA está criando as perguntas… (pode levar alguns segundos)')
+    setStatus(hasUrl ? 'Lendo a página e criando as perguntas…' : 'A IA está criando as perguntas… (pode levar alguns segundos)')
 
-    const { title, questions, error: genErr } = await generateQuizFromMaterial(material, difficulty, count, timeOption)
+    const { title, questions, error: genErr } = await generateQuizFromMaterial(
+      hasUrl ? { url: url.trim() } : { material },
+      difficulty,
+      count,
+      timeOption,
+    )
     if (genErr || questions.length === 0) {
       setBusy(false)
       setStatus(null)
@@ -102,8 +109,19 @@ export function CreateAiPage() {
           Vire seu material em quiz
         </h1>
         <p className="text-body text-[15px] mt-1 mb-7">
-          Envie um PDF (páginas de livro, apostila) ou cole o texto. A IA cria as perguntas pra você.
+          Cole um link (site ou Wikipédia), envie um PDF, ou cole o texto. A IA cria as perguntas pra você.
         </p>
+
+        {/* URL / Wikipédia */}
+        <label className="block text-[13px] font-bold text-nav-link mb-1.5">Link de um site ou artigo da Wikipédia</label>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://pt.wikipedia.org/wiki/Fotossíntese"
+          inputMode="url"
+          className="w-full rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple mb-3"
+        />
+        <div className="text-center text-[13px] text-muted mb-3">ou envie um arquivo</div>
 
         {/* Upload */}
         <label className="block bg-white border-2 border-dashed border-purple/40 rounded-[20px] p-7 text-center cursor-pointer hover:bg-lilac/30 transition-colors">

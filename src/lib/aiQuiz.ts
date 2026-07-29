@@ -23,9 +23,9 @@ function autoTime(prompt: string, options: string[]): number {
   return 60
 }
 
-/** Chama a IA (função serverless) para gerar perguntas a partir do material. */
+/** Chama a IA (função serverless) para gerar perguntas a partir de material OU de uma URL. */
 export async function generateQuizFromMaterial(
-  material: string,
+  source: { material?: string; url?: string },
   difficulty: Difficulty,
   count: number,
   time: TimeOption = 'auto',
@@ -35,7 +35,7 @@ export async function generateQuizFromMaterial(
     res = await fetch('/api/generate-quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ material, difficulty, count }),
+      body: JSON.stringify({ material: source.material, url: source.url, difficulty, count }),
     })
   } catch {
     return { title: '', questions: [], error: 'Não foi possível falar com o servidor de IA.' }

@@ -12,6 +12,51 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 const MODEL = 'deepseek-chat'
 
+/** Busca o texto de uma URL. Wikipédia usa a API oficial (texto limpo). */
+async function fetchUrlText(rawUrl: string): Promise<{ text: string; error?: string }> {
+  let u: URL
+  try {
+    u = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`)
+  } catch {
+    return { text: '', error: 'URL inválida.' }
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return { text: '', error: 'URL inválida.' }
+
+  try {
+    // Wikipédia: pega o texto puro do artigo via API.
+    const wiki = u.hostname.match(/^([a-z]+)\.wikipedia\.org$/i)
+    if (wiki && u.pathname.startsWith('/wiki/')) {
+      const lang = wiki[1]
+      const title = decodeURIComponent(u.pathname.replace('/wiki/', ''))
+      const api = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(title)}`
+      const r = await fetch(api, { headers: { 'User-Agent': 'Quizoo/1.0 (quiz generator)' } })
+      const j = (await r.json()) as { query?: { pages?: Record<string, { extract?: string }> } }
+      const pages = j.query?.pages ?? {}
+      const extract = Object.values(pages)[0]?.extract ?? ''
+      if (extract.trim().length > 40) return { text: extract }
+      // se não veio, cai no fetch genérico abaixo
+    }
+
+    const r = await fetch(u.toString(), { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Quizoo/1.0)' } })
+    if (!r.ok) return { text: '', error: `Não consegui acessar a página (${r.status}).` }
+    const html = await r.text()
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&#\d+;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return { text }
+  } catch {
+    return { text: '', error: 'Não consegui acessar essa URL.' }
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido.' })
@@ -21,15 +66,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'A chave da IA (DEEPSEEK_API_KEY) não está configurada no servidor.' })
   }
 
-  const { material, difficulty, count } = (req.body ?? {}) as {
+  const { material, url, difficulty, count } = (req.body ?? {}) as {
     material?: string
+    url?: string
     difficulty?: Difficulty
     count?: number
   }
 
-  const text = (material ?? '').slice(0, 120000).trim()
+  // Se veio uma URL, busca o texto dela no servidor (evita CORS no navegador).
+  let sourceText = material ?? ''
+  if (url && url.trim()) {
+    const fetched = await fetchUrlText(url.trim())
+    if (fetched.error) return res.status(400).json({ error: fetched.error })
+    sourceText = fetched.text
+  }
+
+  const text = sourceText.slice(0, 120000).trim()
   if (text.length < 40) {
-    return res.status(400).json({ error: 'O material enviado está vazio ou muito curto.' })
+    return res.status(400).json({
+      error: url ? 'Não encontrei texto suficiente nessa página.' : 'O material enviado está vazio ou muito curto.',
+    })
   }
   const diff: Difficulty = difficulty && difficulty in DIFFICULTY_LABEL ? difficulty : 'medio'
   const n = Math.min(20, Math.max(1, Number(count) || 5))
