@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
+import { Avatar } from '../components/Avatar'
 import {
   fetchAllGameAnswers,
   getGame,
@@ -17,10 +18,21 @@ interface QuestionStat {
   isPoll: boolean
 }
 
+type CellStatus = 'correct' | 'wrong' | 'none' | 'poll'
+interface PlayerRow {
+  id: string
+  nickname: string
+  avatar?: string | null
+  score: number
+  hits: number
+  cells: CellStatus[]
+}
+
 export function ResultsPage() {
   const { gameId = '' } = useParams()
   const [players, setPlayers] = useState<Player[]>([])
   const [stats, setStats] = useState<QuestionStat[]>([])
+  const [grid, setGrid] = useState<PlayerRow[]>([])
   const [totalPlayers, setTotalPlayers] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,23 +58,54 @@ export function ResultsPage() {
       setPlayers(sortedPlayers)
       setTotalPlayers(roster.length)
 
-      const questionStats: QuestionStat[] = questions.map((q) => {
-        const correctId = q.type === 'typed' ? null : q.options.find((o) => o.is_correct)?.id
+      // pré-computa, por pergunta: como cada jogador respondeu e se acertou
+      const perQuestion = questions.map((q) => {
+        const isMulti = q.type === 'multiple' && !!q.multiple
+        const correctId = q.type === 'typed' ? null : q.options.find((o) => o.is_correct)?.id ?? null
+        const correctKey = q.options
+          .filter((o) => o.is_correct)
+          .map((o) => o.id)
+          .sort()
+          .join(',')
         const acceptedNorms = q.options.filter((o) => o.is_correct).map((o) => normalizeText(o.label))
-        const forQ = answers.filter((a) => a.question_id === q.id)
         const byPlayer = new Map<string, { answer_id: string | null; typed_text: string | null }>()
-        forQ.forEach((a) => {
-          if (!byPlayer.has(a.player_id)) byPlayer.set(a.player_id, { answer_id: a.answer_id, typed_text: a.typed_text })
-        })
+        answers
+          .filter((a) => a.question_id === q.id)
+          .forEach((a) => {
+            if (!byPlayer.has(a.player_id)) byPlayer.set(a.player_id, { answer_id: a.answer_id, typed_text: a.typed_text })
+          })
+        const status = (playerId: string): CellStatus => {
+          if (q.type === 'poll') return 'poll'
+          const ans = byPlayer.get(playerId)
+          if (!ans) return 'none'
+          let ok: boolean
+          if (isMulti) {
+            ok = (ans.typed_text ?? '').split(',').filter(Boolean).sort().join(',') === correctKey
+          } else if (q.type === 'typed') {
+            ok = acceptedNorms.includes(normalizeText(ans.typed_text ?? ''))
+          } else {
+            ok = ans.answer_id === correctId
+          }
+          return ok ? 'correct' : 'wrong'
+        }
+        return { q, byPlayer, status }
+      })
+
+      const questionStats: QuestionStat[] = perQuestion.map(({ q, byPlayer, status }) => {
         let correct = 0
-        byPlayer.forEach((ans) => {
-          const ok =
-            q.type === 'typed' ? acceptedNorms.includes(normalizeText(ans.typed_text ?? '')) : ans.answer_id === correctId
-          if (ok) correct++
+        byPlayer.forEach((_, pid) => {
+          if (status(pid) === 'correct') correct++
         })
         return { prompt: q.prompt, answered: byPlayer.size, correct, isPoll: q.type === 'poll' }
       })
       setStats(questionStats)
+
+      const playerRows: PlayerRow[] = sortedPlayers.map((p) => {
+        const cells = perQuestion.map(({ status }) => status(p.id))
+        const hits = cells.filter((c) => c === 'correct').length
+        return { id: p.id, nickname: p.nickname, avatar: p.avatar, score: p.score, hits, cells }
+      })
+      setGrid(playerRows)
       setLoading(false)
     })()
     return () => {
@@ -109,6 +152,63 @@ export function ResultsPage() {
               ))}
               {players.length === 0 && <p className="text-muted">Nenhum jogador participou.</p>}
             </div>
+
+            {/* Desempenho por aluno (grade) */}
+            {grid.length > 0 && stats.length > 0 && (
+              <>
+                <h2 className="font-display font-semibold text-[20px] text-heading mb-1">Desempenho por aluno</h2>
+                <p className="text-[13px] text-muted mb-3">
+                  <span className="text-teal font-bold">✓</span> acertou ·{' '}
+                  <span className="text-pink font-bold">✕</span> errou · – não respondeu ·{' '}
+                  <span className="text-purple font-bold">•</span> enquete
+                </p>
+                <div className="overflow-x-auto mb-10 border-2 border-border rounded-[16px] bg-white">
+                  <table className="w-full text-[14px] border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-border">
+                        <th className="text-left font-display font-semibold text-body px-3 py-2.5 sticky left-0 bg-white">
+                          Aluno
+                        </th>
+                        {stats.map((_, i) => (
+                          <th key={i} className="font-display font-semibold text-body px-2 py-2.5 w-9 text-center" title={stats[i].prompt}>
+                            {i + 1}
+                          </th>
+                        ))}
+                        <th className="font-display font-semibold text-body px-3 py-2.5 text-center">Acertos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grid.map((row) => (
+                        <tr key={row.id} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2 sticky left-0 bg-white">
+                            <span className="flex items-center gap-2 font-display font-semibold text-heading whitespace-nowrap">
+                              <Avatar avatar={row.avatar} name={row.nickname} size={26} />
+                              {row.nickname}
+                            </span>
+                          </td>
+                          {row.cells.map((c, i) => (
+                            <td key={i} className="text-center px-2 py-2">
+                              {c === 'correct' ? (
+                                <span className="text-teal font-bold">✓</span>
+                              ) : c === 'wrong' ? (
+                                <span className="text-pink font-bold">✕</span>
+                              ) : c === 'poll' ? (
+                                <span className="text-purple">•</span>
+                              ) : (
+                                <span className="text-muted-2">–</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="text-center px-3 py-2 font-display font-semibold text-purple">
+                            {row.hits}/{stats.filter((s) => !s.isPoll).length}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             {/* Acerto por pergunta */}
             <h2 className="font-display font-semibold text-[20px] text-heading mb-3">Acerto por pergunta</h2>
