@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+// (ícone de olho inline, sem libs)
 import { Link, useNavigate } from 'react-router-dom'
 import logo from '../assets/quizoo-logo.png'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
@@ -141,17 +142,48 @@ function Field({
   placeholder?: string
   required?: boolean
 }) {
+  const [show, setShow] = useState(false)
+  const isPassword = type === 'password'
+  const inputType = isPassword && show ? 'text' : type
   return (
     <label className="flex flex-col gap-1.5">
       <span className="font-bold text-[14px] text-nav-link">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className="rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple transition-colors"
-      />
+      <div className="relative">
+        <input
+          type={inputType}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          required={required}
+          className={`w-full rounded-[14px] border-2 border-border px-4 py-3 text-[15px] text-heading outline-none focus:border-purple transition-colors ${
+            isPassword ? 'pr-12' : ''
+          }`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}
+            title={show ? 'Ocultar senha' : 'Mostrar senha'}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-purple cursor-pointer p-1"
+          >
+            {show ? (
+              // olho aberto
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            ) : (
+              // olho cortado
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.9 5.1A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.8M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6" />
+                <path d="m3 3 18 18" />
+                <path d="M9.5 9.5a3 3 0 0 0 4.2 4.2" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
     </label>
   )
 }

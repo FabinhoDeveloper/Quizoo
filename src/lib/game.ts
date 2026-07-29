@@ -46,6 +46,7 @@ export interface RevealPayload {
   correctAnswerId: string | null
   correctAnswerIds?: string[] // seleção múltipla: todas as corretas
   acceptedAnswers?: string[]
+  explanation?: string | null // explicação da resposta (IA ou manual)
   pollCounts?: { label: string; count: number }[]
   leaderboard: LeaderRow[]
   final?: boolean
@@ -73,6 +74,7 @@ export interface HostQuestion {
   points: number
   image_url?: string | null
   multiple?: boolean
+  explanation?: string | null
   options: { id: string; label: string; is_correct: boolean }[]
 }
 
@@ -107,7 +109,7 @@ export async function hostGame(
 ): Promise<{ gameId: string; pin: string; questions: HostQuestion[]; error: string | null }> {
   const { data: questions, error: qErr } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, image_url, multiple, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, multiple, explanation, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   if (qErr) return { gameId: '', pin: '', questions: [], error: qErr.message }
@@ -129,6 +131,7 @@ export async function hostGame(
     points: q.points,
     image_url: q.image_url ?? null,
     multiple: q.multiple ?? false,
+    explanation: q.explanation ?? null,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -159,7 +162,7 @@ export async function hostGame(
 export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]> {
   const { data } = await supabase
     .from('questions')
-    .select('id, type, prompt, time_limit, points, position, image_url, multiple, answers(id, label, is_correct, position)')
+    .select('id, type, prompt, time_limit, points, position, image_url, multiple, explanation, answers(id, label, is_correct, position)')
     .eq('quiz_id', quizId)
     .order('position', { ascending: true })
   return (data ?? []).map((q) => ({
@@ -170,6 +173,7 @@ export async function loadHostQuestions(quizId: string): Promise<HostQuestion[]>
     points: q.points,
     image_url: q.image_url ?? null,
     multiple: q.multiple ?? false,
+    explanation: q.explanation ?? null,
     options: (q.answers ?? [])
       .filter((a) => a.label?.trim())
       .sort((a, b) => a.position - b.position)
@@ -300,6 +304,7 @@ export async function hostReveal(
   extra?: {
     acceptedAnswers?: string[]
     correctAnswerIds?: string[]
+    explanation?: string | null
     pollCounts?: { label: string; count: number }[]
   },
 ) {
@@ -311,6 +316,7 @@ export async function hostReveal(
         correctAnswerId,
         acceptedAnswers: extra?.acceptedAnswers,
         correctAnswerIds: extra?.correctAnswerIds,
+        explanation: extra?.explanation ?? null,
         pollCounts: extra?.pollCounts,
         leaderboard,
       },

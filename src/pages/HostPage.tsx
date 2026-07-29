@@ -233,6 +233,7 @@ export function HostPage() {
     await hostReveal(gameId, correctId, board, {
       acceptedAnswers: q.type === 'typed' ? acceptedLabels : undefined,
       correctAnswerIds: isMulti ? correctIds : undefined,
+      explanation: q.type === 'poll' ? null : q.explanation ?? null,
       pollCounts,
     })
   }
@@ -437,6 +438,13 @@ export function HostPage() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+            {q.explanation && q.type !== 'poll' && (
+              <div className="max-w-[620px] mx-auto mb-6 bg-blue-light/60 border-2 border-blue/30 rounded-[16px] px-5 py-4 text-left">
+                <p className="font-display font-semibold text-[14px] text-blue mb-1">💡 Por quê?</p>
+                <p className="text-[15px] text-heading">{q.explanation}</p>
               </div>
             )}
 

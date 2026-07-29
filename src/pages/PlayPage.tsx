@@ -342,14 +342,22 @@ export function PlayPage() {
         )}
 
         {status === 'reveal' && game?.reveal && !game.reveal.pollCounts && feedbackMode !== 'end' && (
-          <RevealCard
-            gotIt={gotItFor(game.reveal, selected)}
-            answered={selected != null}
-            myScore={game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0}
-            myRank={rankOf(game.reveal.leaderboard, playerId)}
-            total={game.reveal.leaderboard.length}
-            streak={streak}
-          />
+          <>
+            <RevealCard
+              gotIt={gotItFor(game.reveal, selected)}
+              answered={selected != null}
+              myScore={game.reveal.leaderboard.find((r) => r.playerId === playerId)?.score ?? 0}
+              myRank={rankOf(game.reveal.leaderboard, playerId)}
+              total={game.reveal.leaderboard.length}
+              streak={streak}
+            />
+            {game.reveal.explanation && (
+              <div className="mt-3 bg-blue-light/60 border-2 border-blue/30 rounded-[16px] px-5 py-4 text-left">
+                <p className="font-display font-semibold text-[14px] text-blue mb-1">💡 Por quê?</p>
+                <p className="text-[15px] text-heading">{game.reveal.explanation}</p>
+              </div>
+            )}
+          </>
         )}
 
         {status === 'ended' && game?.reveal && (

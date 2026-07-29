@@ -766,6 +766,21 @@ function QuestionCard({
           </div>
         </>
       )}
+
+      {question.type !== 'poll' && (
+        <div className="mt-4">
+          <label className="text-[12px] text-muted font-bold uppercase tracking-wide">
+            Explicação da resposta (opcional — aparece na revelação)
+          </label>
+          <textarea
+            value={question.explanation ?? ''}
+            onChange={(e) => onPatch({ explanation: e.target.value || null })}
+            placeholder="Ex.: A capital do Brasil é Brasília desde 1960."
+            rows={2}
+            className="w-full mt-1 resize-none rounded-[12px] border-2 border-border px-3 py-2 text-[14px] text-heading outline-none focus:border-purple"
+          />
+        </div>
+      )}
     </div>
   )
 }

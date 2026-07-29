@@ -95,8 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'a partir de um material didático. Cada pergunta tem exatamente 4 alternativas, com apenas UMA correta. ' +
     'As perguntas devem ser respondíveis usando o material fornecido. Evite pegadinhas ambíguas. ' +
     'Responda SEMPRE em JSON válido, sem texto extra, no formato: ' +
-    '{"title": string, "questions": [{"prompt": string, "options": [string, string, string, string], "correctIndex": number}]}. ' +
-    'O campo correctIndex é o índice (0 a 3) da alternativa correta.'
+    '{"title": string, "questions": [{"prompt": string, "options": [string, string, string, string], "correctIndex": number, "explanation": string}]}. ' +
+    'O campo correctIndex é o índice (0 a 3) da alternativa correta. ' +
+    'O campo explanation é uma explicação CURTA (1-2 frases) do porquê a resposta certa está correta, em português.'
 
   const userMsg =
     `Crie ${n} perguntas de ${DIFFICULTY_LABEL[diff]} a partir do material abaixo. ` +
@@ -143,7 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let parsed: {
       title?: string
-      questions?: { prompt: string; options: string[]; correctIndex: number }[]
+      questions?: { prompt: string; options: string[]; correctIndex: number; explanation?: string }[]
     }
     try {
       parsed = JSON.parse(content)
@@ -158,7 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const options = q.options.slice(0, 4)
         while (options.length < 4) options.push('')
         const correctIndex = Math.min(3, Math.max(0, Number(q.correctIndex) || 0))
-        return { prompt: q.prompt, options, correctIndex }
+        return { prompt: q.prompt, options, correctIndex, explanation: (q.explanation ?? '').toString().slice(0, 400) }
       })
       .filter((q) => q.options.filter((o) => o.trim()).length >= 2)
 

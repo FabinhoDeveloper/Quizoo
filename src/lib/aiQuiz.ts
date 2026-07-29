@@ -6,6 +6,7 @@ interface ApiQuestion {
   prompt: string
   options: string[]
   correctIndex: number
+  explanation?: string
 }
 
 const uid = () =>
@@ -58,6 +59,7 @@ export async function generateQuizFromMaterial(
     points: 1000,
     image_url: null,
     multiple: false,
+    explanation: q.explanation?.trim() ? q.explanation.trim() : null,
     answers: q.options.map((label, i) => ({ id: uid(), label, is_correct: i === q.correctIndex })),
   }))
 
