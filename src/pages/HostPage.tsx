@@ -31,6 +31,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 type Phase = 'loading' | 'lobby' | 'question' | 'reveal' | 'ended'
 
+const COUNTDOWN_MS = 3000 // "Preparar..." antes de cada pergunta valer
+
 export function HostPage() {
   const { gameId = '' } = useParams()
   const navigate = useNavigate()
@@ -40,6 +42,8 @@ export function HostPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [index, setIndex] = useState(0)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [readyLeft, setReadyLeft] = useState(0)
+  const [correctCount, setCorrectCount] = useState<number | null>(null)
   const [answeredCount, setAnsweredCount] = useState(0)
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([])
   const [pollResult, setPollResult] = useState<{ label: string; count: number }[]>([])
@@ -123,13 +127,20 @@ export function HostPage() {
     return () => clearInterval(id)
   }, [phase, gameId])
 
-  // timer da pergunta
+  // timer da pergunta (com contagem "Preparar" antes de valer)
   useEffect(() => {
     if (phase !== 'question') return
     const q = questionsRef.current[indexRef.current]
     lastTickRef.current = 99
     const id = setInterval(() => {
       const elapsed = (Date.now() - startRef.current) / 1000
+      if (elapsed < 0) {
+        // fase de preparação (contagem regressiva antes da pergunta valer)
+        setReadyLeft(Math.max(1, Math.ceil(-elapsed)))
+        setTimeLeft(q.time_limit)
+        return
+      }
+      setReadyLeft(0)
       const left = Math.ceil(q.time_limit - elapsed)
       if (left <= 0) {
         clearInterval(id)
@@ -141,7 +152,7 @@ export function HostPage() {
           playTick(true)
         }
       }
-    }, 250)
+    }, 200)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, index])
@@ -170,8 +181,9 @@ export function HostPage() {
     if (q.type !== 'typed') q.options = shuffleArray(q.options)
     answeredRef.current = new Set()
     setAnsweredCount(0)
-    const startedAt = Date.now()
+    const startedAt = Date.now() + COUNTDOWN_MS // 3s de "Preparar" antes de valer
     startRef.current = startedAt
+    setReadyLeft(Math.ceil(COUNTDOWN_MS / 1000))
     setTimeLeft(q.time_limit)
     indexRef.current = i
     setIndex(i)
@@ -193,6 +205,7 @@ export function HostPage() {
     const answers = await fetchQuestionAnswers(gameId, q.id)
     const seen = new Set<string>()
     const votes = new Map<string, number>() // answer_id -> votos (enquete)
+    let nCorrect = 0
     answers.forEach((a) => {
       if (seen.has(a.player_id)) return // conta só a 1ª resposta de cada jogador
       seen.add(a.player_id)
@@ -210,6 +223,7 @@ export function HostPage() {
         : q.type === 'typed'
           ? acceptedNorms.includes(normalizeText(a.typed_text ?? ''))
           : a.answer_id === correctId
+      if (correct) nCorrect++
       const base = awardPoints(correct, q.points, a.response_ms ?? q.time_limit * 1000, q.time_limit * 1000)
       // Sequência de acertos: a partir do 3º acerto seguido, ganha bônus (até +500).
       const prevStreak = streaksRef.current.get(a.player_id) ?? 0
@@ -224,6 +238,7 @@ export function HostPage() {
         if (!seen.has(pid)) streaksRef.current.set(pid, 0)
       })
     }
+    setCorrectCount(q.type === 'poll' ? null : nCorrect)
     const board = [...scoresRef.current.values()].sort((a, b) => b.score - a.score)
     setLeaderboard(board)
     await persistScores(board)
@@ -311,7 +326,25 @@ export function HostPage() {
           </div>
         )}
 
-        {phase === 'question' && q && (
+        {phase === 'question' && q && readyLeft > 0 && (
+          <div key={`ready-${index}`} className="text-center py-10 quizoo-slidein">
+            <p className="font-display font-semibold text-purple text-[18px] uppercase tracking-wide mb-4">
+              Pergunta {index + 1} de {questionsRef.current.length}
+            </p>
+            <h2 className="font-display font-semibold text-[28px] sm:text-[38px] text-heading max-w-[760px] mx-auto mb-8">
+              {q.prompt}
+            </h2>
+            <div
+              key={readyLeft}
+              className="mx-auto grid place-items-center w-28 h-28 rounded-full bg-purple text-white font-display font-semibold text-[54px] shadow-[0_8px_0_#3A0E86] quizoo-pop"
+            >
+              {readyLeft}
+            </div>
+            <p className="font-display font-semibold text-body text-[18px] mt-6">Preparar…</p>
+          </div>
+        )}
+
+        {phase === 'question' && q && readyLeft === 0 && (
           <div key={index} className="quizoo-slidein">
             <div className="flex items-center justify-between mb-4">
               <span className="font-display font-semibold text-body">
@@ -370,6 +403,11 @@ export function HostPage() {
 
         {phase === 'reveal' && q && (
           <div>
+            {correctCount !== null && q.type !== 'poll' && (
+              <p className="text-center font-display font-semibold text-teal text-[18px] mb-2">
+                ✅ {correctCount} {correctCount === 1 ? 'jogador acertou' : 'jogadores acertaram'}
+              </p>
+            )}
             <h2 className="font-display font-semibold text-[24px] text-heading text-center mb-4">
               {q.type === 'poll'
                 ? 'Resultado da enquete'

@@ -32,11 +32,11 @@ export function PlayPage() {
   const [typedInput, setTypedInput] = useState('')
   const [multiSel, setMultiSel] = useState<string[]>([])
   const [timeLeft, setTimeLeft] = useState(0)
+  const [readyLeft, setReadyLeft] = useState(0)
   const [streak, setStreak] = useState(0)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const lastTickRef = useRef(99)
   const revealDoneRef = useRef(-1)
-  const qAnchorRef = useRef<{ pos: number; t: number }>({ pos: -1, t: 0 })
 
   useEffect(() => {
     if (!playerId) {
@@ -89,22 +89,22 @@ export function PlayPage() {
     setMultiSel([])
   }, [payload?.position])
 
-  // cronômetro local durante a pergunta.
-  // Ancora no relógio LOCAL do jogador (quando a pergunta chega), não no
-  // horário do host — assim celular e computador não divergem por diferença
-  // de relógio entre os aparelhos. A revelação continua controlada pelo host.
+  // cronômetro da pergunta, com a contagem "Preparar" antes de valer.
+  // Usa payload.startedAt (que o host manda no futuro, +3s) como referência
+  // compartilhada, então a contagem e o tempo batem com o host.
   useEffect(() => {
     if (status !== 'question' || !payload) return
     lastTickRef.current = 99
     const limit = payload.timeLimit
-    if (qAnchorRef.current.pos !== payload.position) {
-      // não deixa "ganhar tempo" além do que o host já contou
-      const hostElapsed = (Date.now() - new Date(payload.startedAt).getTime()) / 1000
-      const skew = hostElapsed > 0 && hostElapsed < limit ? Math.min(hostElapsed, 2) : 0
-      qAnchorRef.current = { pos: payload.position, t: Date.now() - skew * 1000 }
-    }
-    const started = qAnchorRef.current.t
+    const started = new Date(payload.startedAt).getTime()
     const tick = () => {
+      const untilStart = started - Date.now()
+      if (untilStart > 0) {
+        setReadyLeft(Math.max(1, Math.ceil(untilStart / 1000)))
+        setTimeLeft(limit)
+        return
+      }
+      setReadyLeft(0)
       const left = Math.max(0, Math.ceil(limit - (Date.now() - started) / 1000))
       setTimeLeft(left)
       if (left <= 5 && left > 0 && left !== lastTickRef.current && !answeredThis) {
@@ -113,7 +113,7 @@ export function PlayPage() {
       }
     }
     tick()
-    const id = setInterval(tick, 250)
+    const id = setInterval(tick, 200)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, payload?.position, answeredThis])
@@ -201,7 +201,22 @@ export function PlayPage() {
           </Card>
         )}
 
-        {status === 'question' && payload && (
+        {status === 'question' && payload && readyLeft > 0 && (
+          <div key={`ready-${payload.position}`} className="text-center py-10 quizoo-slidein">
+            <p className="font-display font-semibold text-purple text-[15px] uppercase tracking-wide mb-3">
+              Pergunta {payload.position + 1} de {payload.total}
+            </p>
+            <div
+              key={readyLeft}
+              className="mx-auto grid place-items-center w-24 h-24 rounded-full bg-purple text-white font-display font-semibold text-[46px] shadow-[0_6px_0_#3A0E86] quizoo-pop"
+            >
+              {readyLeft}
+            </div>
+            <p className="font-display font-semibold text-body text-[17px] mt-5">Preparar…</p>
+          </div>
+        )}
+
+        {status === 'question' && payload && readyLeft === 0 && (
           <div key={payload.position} className="quizoo-slidein">
             <div className="flex items-center justify-between mb-4">
               <span className="font-display font-semibold text-body">
@@ -260,15 +275,18 @@ export function PlayPage() {
                         onClick={() =>
                           setMultiSel((sel) => (sel.includes(o.id) ? sel.filter((x) => x !== o.id) : [...sel, o.id]))
                         }
-                        className={`flex items-center gap-3 rounded-[16px] px-5 py-6 text-white text-left transition cursor-pointer ${
+                        aria-label={`Opção ${i + 1}`}
+                        className={`relative grid place-items-center rounded-[18px] h-24 text-white transition cursor-pointer ${
                           on ? 'ring-4 ring-white/90 brightness-105' : 'opacity-90 hover:brightness-105'
                         }`}
                         style={{ background: s.bg }}
                       >
-                        <span className="w-7 h-7 shrink-0 rounded-md grid place-items-center bg-white/25 font-bold">
-                          {on ? '✓' : ''}
-                        </span>
-                        <span className="font-display font-semibold text-[18px]">{o.label}</span>
+                        <span className="text-[44px] leading-none">{s.shape}</span>
+                        {on && (
+                          <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center bg-white text-teal font-bold">
+                            ✓
+                          </span>
+                        )}
                       </button>
                     )
                   })}
@@ -283,7 +301,7 @@ export function PlayPage() {
                 </button>
               </>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {payload.options.map((o, i) => {
                   const s = answerStyle(i)
                   return (
@@ -291,11 +309,11 @@ export function PlayPage() {
                       key={o.id}
                       type="button"
                       onClick={() => answer(o.id)}
-                      className="flex items-center gap-3 rounded-[16px] px-5 py-6 text-white text-left hover:brightness-105 active:scale-[0.98] transition cursor-pointer"
+                      aria-label={`Opção ${i + 1}`}
+                      className="grid place-items-center rounded-[18px] h-28 text-white hover:brightness-105 active:scale-[0.98] transition cursor-pointer"
                       style={{ background: s.bg }}
                     >
-                      <span className="text-[26px]">{s.shape}</span>
-                      <span className="font-display font-semibold text-[18px]">{o.label}</span>
+                      <span className="text-[52px] leading-none">{s.shape}</span>
                     </button>
                   )
                 })}

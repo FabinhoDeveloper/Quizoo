@@ -235,7 +235,7 @@ export function EditorPage() {
     return null
   }
 
-  async function handleSave() {
+  async function handleSave(goToList = false) {
     const problem = validate()
     if (problem) {
       setError(problem)
@@ -250,6 +250,7 @@ export function EditorPage() {
       return
     }
     setSavedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
+    if (goToList) navigate('/app') // "Salvar quiz" volta para Meus quizzes
   }
 
   async function handleTogglePublish() {
@@ -295,7 +296,7 @@ export function EditorPage() {
             </button>
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => handleSave(false)}
               disabled={saving}
               className="font-display font-semibold rounded-[14px] px-5 py-2.5 text-[15px] text-white bg-purple shadow-[0_4px_0_#3A0E86] hover:translate-y-0.5 hover:shadow-[0_2px_0_#3A0E86] transition-[transform,box-shadow] disabled:opacity-60 cursor-pointer"
             >
@@ -457,11 +458,11 @@ export function EditorPage() {
           </button>
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave(true)}
             disabled={saving}
             className="font-display font-semibold rounded-2xl px-8 py-3.5 text-[17px] text-white bg-purple shadow-[0_5px_0_#3A0E86] hover:translate-y-0.5 hover:shadow-[0_3px_0_#3A0E86] transition-[transform,box-shadow] disabled:opacity-60 cursor-pointer"
           >
-            {saving ? 'Salvando…' : 'Salvar quiz'}
+            {saving ? 'Salvando…' : 'Salvar e sair'}
           </button>
         </div>
       </main>
